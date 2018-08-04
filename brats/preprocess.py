@@ -12,7 +12,7 @@ import SimpleITK as sitk
 import numpy as np
 from nipype.interfaces.ants import N4BiasFieldCorrection
 
-from brats.train import config
+from brats.train_isensee2017 import config
 
 
 def append_basename(in_file, append):
@@ -61,6 +61,7 @@ def correct_bias(in_file, out_file, image_type=sitk.sitkFloat64):
     Corrects the bias using ANTs N4BiasFieldCorrection. If this fails, will then attempt to correct bias using SimpleITK
     :param in_file: input file path
     :param out_file: output file path
+    :param image_type:
     :return: file path to the bias corrected image
     """
     correct = N4BiasFieldCorrection()
@@ -87,7 +88,7 @@ def rescale(in_file, out_file, minimum=0, maximum=20000):
 
 
 def get_image(subject_folder, name):
-    file_card = os.path.join(subject_folder, "*" + name + ".nii.gz")
+    file_card = os.path.join(subject_folder, "*" + name + ".nii")
     try:
         return glob.glob(file_card)[0]
     except IndexError:
@@ -116,11 +117,11 @@ def normalize_image(in_file, out_file, bias_correction=True):
     return out_file
 
 
-def convert_brats_folder(in_folder, out_folder, truth_name="GlistrBoost_ManuallyCorrected",
+def convert_brats_folder(in_folder, out_folder, truth_name="truth",
                          no_bias_correction_modalities=None):
     for name in config["all_modalities"]:
         image_file = get_image(in_folder, name)
-        out_file = os.path.abspath(os.path.join(out_folder, name + ".nii.gz"))
+        out_file = os.path.abspath(os.path.join(out_folder, name + ".nii"))
         perform_bias_correction = no_bias_correction_modalities and name not in no_bias_correction_modalities
         normalize_image(image_file, out_file, bias_correction=perform_bias_correction)
     # copy the truth file
@@ -144,7 +145,7 @@ def convert_brats_data(brats_folder, out_folder, overwrite=False, no_bias_correc
     or tuple.
     :return:
     """
-    for subject_folder in glob.glob(os.path.join(brats_folder, "*", "*")):
+    for subject_folder in glob.glob(os.path.join(brats_folder, "*")):
         if os.path.isdir(subject_folder):
             subject = os.path.basename(subject_folder)
             new_subject_folder = os.path.join(out_folder, os.path.basename(os.path.dirname(subject_folder)),
@@ -152,5 +153,6 @@ def convert_brats_data(brats_folder, out_folder, overwrite=False, no_bias_correc
             if not os.path.exists(new_subject_folder) or overwrite:
                 if not os.path.exists(new_subject_folder):
                     os.makedirs(new_subject_folder)
+                print('subject_folder: '+subject_folder)
                 convert_brats_folder(subject_folder, new_subject_folder,
                                      no_bias_correction_modalities=no_bias_correction_modalities)
