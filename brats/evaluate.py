@@ -25,8 +25,8 @@ def dice_coefficient(truth, prediction):
 
 
 def main():
-    header = ("WholeTumor", "TumorCore", "EnhancingTumor")
-    masking_functions = (get_whole_tumor_mask, get_tumor_core_mask, get_enhancing_tumor_mask)
+    header = ("WholeTumor",)
+    masking_functions = (get_whole_tumor_mask,)
     rows = list()
     subject_ids = list()
     for case_folder in glob.glob("prediction/*"):
@@ -39,7 +39,7 @@ def main():
         prediction_file = os.path.join(case_folder, "prediction.nii.gz")
         prediction_image = nib.load(prediction_file)
         prediction = prediction_image.get_data()
-        rows.append([dice_coefficient(func(truth), func(prediction))for func in masking_functions])
+        rows.append([dice_coefficient(func(truth), func(prediction)) for func in masking_functions])
 
     df = pd.DataFrame.from_records(rows, columns=header, index=subject_ids)
     df.to_csv("./prediction/brats_scores.csv")
