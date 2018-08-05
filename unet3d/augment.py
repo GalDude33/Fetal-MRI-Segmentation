@@ -191,18 +191,18 @@ def permute_data(data, key):
     (rotate_y, rotate_z), flip_x, flip_y, flip_z, transpose = key
 
     if rotate_y != 0:
-        data = np.rot90(data, rotate_y, axes=(1, 3))
-    if rotate_z != 0:
-        data = np.rot90(data, rotate_z, axes=(2, 3))
+        data = np.rot90(data, rotate_y, axes=(1, 2))
+    # if rotate_z != 0:
+    #     data = np.rot90(data, rotate_z, axes=(2, 3))
     if flip_x:
         data = data[:, ::-1]
     if flip_y:
         data = data[:, :, ::-1]
     if flip_z:
         data = data[:, :, :, ::-1]
-    if transpose:
-        for i in range(data.shape[0]):
-            data[i] = data[i].T
+    # if transpose:
+    #    for i in range(data.shape[0]):
+    #        data[i] = data[i].T
     return data
 
 
@@ -222,19 +222,19 @@ def reverse_permute_data(data, key):
     data = np.copy(data)
     (rotate_y, rotate_z), flip_x, flip_y, flip_z, transpose = key
 
-    if transpose:
-        for i in range(data.shape[0]):
-            data[i] = data[i].T
+    # if transpose:
+    #    for i in range(data.shape[0]):
+    #        data[i] = data[i].T
     if flip_z:
         data = data[:, :, :, ::-1]
     if flip_y:
         data = data[:, :, ::-1]
     if flip_x:
         data = data[:, ::-1]
-    if rotate_z != 0:
-        data = np.rot90(data, rotate_z, axes=(2, 3))
+    # if rotate_z != 0:
+    #    data = np.rot90(data, rotate_z, axes=(2, 3))
     if rotate_y != 0:
-        data = np.rot90(data, rotate_y, axes=(1, 3))
+        data = np.rot90(data, rotate_y, axes=(1, 2))
     return data
 
 

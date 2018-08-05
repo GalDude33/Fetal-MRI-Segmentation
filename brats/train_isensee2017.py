@@ -6,15 +6,15 @@ from unet3d.generator import get_training_and_validation_generators
 from unet3d.model import isensee2017_model
 from unet3d.training import load_old_model, train_model
 
-
 config = dict()
-config["image_shape"] = (128, 128, 128)  # This determines what shape the images will be cropped/resampled to.
+config["image_shape"] = (128, 128, 64)  # This determines what shape the images will be cropped/resampled to.
 config["patch_shape"] = None  # switch to None to train on the whole image
-config["labels"] = (1, 2, 4)  # the label numbers on the input image
+config["labels"] = (1,)  # (1, 1, 1)  # the label numbers on the input image
 config["n_base_filters"] = 16
 config["n_labels"] = len(config["labels"])
-config["all_modalities"] = ["t1", "t1Gd", "flair", "t2"]
-config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
+config["all_modalities"] = ["volume"]
+config["training_modalities"] = config[
+    "all_modalities"]  # ['volume'] * 4  # change this if you want to only use some of the modalities
 config["nb_channels"] = len(config["training_modalities"])
 if "patch_shape" in config and config["patch_shape"] is not None:
     config["input_shape"] = tuple([config["nb_channels"]] + list(config["patch_shape"]))
@@ -24,32 +24,33 @@ config["truth_channel"] = config["nb_channels"]
 config["deconvolution"] = True  # if False, will use upsampling instead of deconvolution
 
 config["batch_size"] = 1
-config["validation_batch_size"] = 2
-config["n_epochs"] = 500  # cutoff the training after this many epochs
-config["patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
+config["validation_batch_size"] = 1
+config["n_epochs"] = 300  # cutoff the training after this many epochs
+config["patience"] = 20  # learning rate will be reduced after this many epochs if the validation loss is not improving
 config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
 config["initial_learning_rate"] = 5e-4
 config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
 config["validation_split"] = 0.90  # portion of the data that will be used for training
 
 config["augment"] = {
-    "permute": True,  # data shape must be a cube. Augments the data by permuting in various directions
     "flip": False,  # augments the data by randomly flipping an axis during
-    "scale": None,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
-    "translate": None,  # i.e 0.10 for 10%, std of translation factor, switch to None if you want no translation
-    "rotate": None  # std of angle rotation, switch to None if you want no rotation
+    "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
+    "scale": 0.20,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
+    "translate": 0.10,  # i.e 0.10 for 10%, std of translation factor, switch to None if you want no translation
+    "rotate": 7  # std of angle rotation, switch to None if you want no rotation
 }
 config["augment"] = config["augment"] if any(config["augment"].values()) else None
-
 config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
 config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
 config["skip_blank"] = True  # if True, then patches without any target will be skipped
 
-config["data_file"] = os.path.abspath("brats_data.h5")
-config["model_file"] = os.path.abspath("isensee_2017_model.h5")
-config["training_file"] = os.path.abspath("isensee_training_ids.pkl")
-config["validation_file"] = os.path.abspath("isensee_validation_ids.pkl")
+config["base_dir"] = './debug'
+config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
+config["model_file"] = os.path.join(config["base_dir"], "isensee_2017_model.h5")
+config["training_file"] = os.path.join(config["base_dir"], "isensee_training_ids.pkl")
+config["validation_file"] = os.path.join(config["base_dir"], "isensee_validation_ids.pkl")
 config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
+config['freeze_encoder'] = False
 
 
 def fetch_training_data_files(return_subject_ids=False):
@@ -80,11 +81,28 @@ def main(overwrite=False):
 
     if not overwrite and os.path.exists(config["model_file"]):
         model = load_old_model(config["model_file"])
+        # new_model = isensee2017_model(input_shape=config["input_shape"], n_labels=config["n_labels"],
+        #                              initial_learning_rate=config["initial_learning_rate"],
+        #                              n_base_filters=config["n_base_filters"])
+
+        if config['freeze_encoder']:
+            last_index = list(layer.name for layer in model.layers) \
+                .index('up_sampling3d_1')
+            for layer in model.layers[:last_index]:
+                layer.trainable = False
+            from keras.optimizers import Adam
+            from unet3d.model.isensee2017 import weighted_dice_coefficient_loss
+            model.compile(optimizer=Adam(lr=config['initial_learning_rate']), loss=weighted_dice_coefficient_loss)
+        # for new_layer, layer in zip(new_model.layers[1:], old_model.layers[1:]):
+        #     assert new_layer.name == layer.name
+        #     new_layer.set_weights(layer.get_weights())
+        # model = new_model
     else:
         # instantiate new model
         model = isensee2017_model(input_shape=config["input_shape"], n_labels=config["n_labels"],
                                   initial_learning_rate=config["initial_learning_rate"],
                                   n_base_filters=config["n_base_filters"])
+    model.summary()
 
     # get training and testing generators
     train_generator, validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(

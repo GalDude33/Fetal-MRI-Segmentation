@@ -6,14 +6,13 @@ from unet3d.generator import get_training_and_validation_generators
 from unet3d.model import unet_model_3d
 from unet3d.training import load_old_model, train_model
 
-
 config = dict()
 config["pool_size"] = (2, 2, 2)  # pool size for the max pooling operations
 config["image_shape"] = (144, 144, 144)  # This determines what shape the images will be cropped/resampled to.
 config["patch_shape"] = (64, 64, 64)  # switch to None to train on the whole image
-config["labels"] = (1, 2, 4)  # the label numbers on the input image
+config["labels"] = (1,)  # (1, 2, 4)  # the label numbers on the input image
 config["n_labels"] = len(config["labels"])
-config["all_modalities"] = ["t1", "t1Gd", "flair", "t2"]
+config["all_modalities"] = ["volume"]  # ["t1", "t1Gd", "flair", "t2"]
 config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
 config["nb_channels"] = len(config["training_modalities"])
 if "patch_shape" in config and config["patch_shape"] is not None:
