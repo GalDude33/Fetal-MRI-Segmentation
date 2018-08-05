@@ -31,10 +31,16 @@ config["early_stop"] = 50  # training will be stopped after this many epochs wit
 config["initial_learning_rate"] = 0.00001
 config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
 config["validation_split"] = 0.8  # portion of the data that will be used for training
-config["flip"] = False  # augments the data by randomly flipping an axis during
-config["permute"] = True  # data shape must be a cube. Augments the data by permuting in various directions
-config["distort"] = None  # switch to None if you want no distortion
-config["augment"] = config["flip"] or config["distort"]
+
+config["augment"] = {
+    "permute": True,  # data shape must be a cube. Augments the data by permuting in various directions
+    "flip": False,  # augments the data by randomly flipping an axis during
+    "scale": None,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
+    "translate": None,  # i.e 0.10 for 10%, std of translation factor, switch to None if you want no translation
+    "rotate": None  # std of angle rotation, switch to None if you want no rotation
+}
+config["augment"] = config["augment"] if any(config["augment"].values()) else None
+
 config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
 config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
 config["skip_blank"] = True  # if True, then patches without any target will be skipped
@@ -88,11 +94,8 @@ def main(overwrite=False):
         validation_batch_size=config["validation_batch_size"],
         validation_patch_overlap=config["validation_patch_overlap"],
         training_patch_start_offset=config["training_patch_start_offset"],
-        permute=config["permute"],
         augment=config["augment"],
-        skip_blank=config["skip_blank"],
-        augment_flip=config["flip"],
-        augment_distortion_factor=config["distort"])
+        skip_blank=config["skip_blank"])
 
     # run training
     train_model(model=model,

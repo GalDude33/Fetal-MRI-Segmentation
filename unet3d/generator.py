@@ -11,10 +11,9 @@ from .augment import augment_data, random_permutation_x_y
 
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
-                                           data_split=0.8, overwrite=False, labels=None, augment=False,
-                                           augment_flip=True, augment_distortion_factor=0.25, patch_shape=None,
+                                           patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_patch_overlap=0, training_patch_start_offset=None,
-                                           validation_batch_size=None, skip_blank=True, permute=False):
+                                           validation_batch_size=None, skip_blank=True):
     """
     Creates the training and validation generators that can be used when training the model.
     :param skip_blank: If True, any blank (all-zero) label images/patches will be skipped by the data generator.
@@ -25,11 +24,9 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     patch_shape to not be None)
     :param patch_shape: Shape of the data to return with the generator. If None, the whole image will be returned.
     (default is None)
-    :param augment_flip: if True and augment is True, then the data will be randomly flipped along the x, y and z axis
-    :param augment_distortion_factor: if augment is True, this determines the standard deviation from the original
     that the data will be distorted (in a stretching or shrinking fashion). Set to None, False, or 0 to prevent the
     augmentation from distorting the data in this way.
-    :param augment: If True, training data will be distorted on the fly so as to avoid over-fitting.
+    :param augment: If not None, training data will be distorted on the fly so as to avoid over-fitting.
     :param labels: List or tuple containing the ordered label values in the image files. The length of the list or tuple
     should be equal to the n_labels value.
     Example: (10, 25, 50)
@@ -44,7 +41,6 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     will be used for validation. Default is 0.8 or 80%.
     :param overwrite: If set to True, previous files will be overwritten. The default mode is false, so that the
     training and validation splits won't be overwritten when rerunning model training.
-    :param permute: will randomly permute the data (data must be 3D cube)
     :return: Training data generator, validation data generator, number of training steps, number of validation steps
     """
     if not validation_batch_size:
@@ -61,13 +57,10 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                         n_labels=n_labels,
                                         labels=labels,
                                         augment=augment,
-                                        augment_flip=augment_flip,
-                                        augment_distortion_factor=augment_distortion_factor,
                                         patch_shape=patch_shape,
                                         patch_overlap=0,
                                         patch_start_offset=training_patch_start_offset,
-                                        skip_blank=skip_blank,
-                                        permute=permute)
+                                        skip_blank=skip_blank)
     validation_generator = data_generator(data_file, validation_list,
                                           batch_size=validation_batch_size,
                                           n_labels=n_labels,
@@ -133,9 +126,9 @@ def split_list(input_list, split=0.8, shuffle_list=True):
     return training, testing
 
 
-def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=False, augment_flip=True,
-                   augment_distortion_factor=0.25, patch_shape=None, patch_overlap=0, patch_start_offset=None,
-                   shuffle_index_list=True, skip_blank=True, permute=False):
+def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
+                   augment=None, patch_shape=None, patch_overlap=0,
+                   patch_start_offset=None, shuffle_index_list=True, skip_blank=True):
     orig_index_list = index_list
     while True:
         x_list = list()
@@ -150,9 +143,8 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
             shuffle(index_list)
         while len(index_list) > 0:
             index = index_list.pop()
-            add_data(x_list, y_list, data_file, index, augment=augment, augment_flip=augment_flip,
-                     augment_distortion_factor=augment_distortion_factor, patch_shape=patch_shape,
-                     skip_blank=skip_blank, permute=permute)
+            add_data(x_list, y_list, data_file, index, augment=augment,
+                     patch_shape=patch_shape, skip_blank=skip_blank)
             if len(x_list) == batch_size or (len(index_list) == 0 and len(x_list) > 0):
                 yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels)
                 x_list = list()
@@ -188,8 +180,7 @@ def create_patch_index_list(index_list, image_shape, patch_shape, patch_overlap,
     return patch_index
 
 
-def add_data(x_list, y_list, data_file, index, augment=False, augment_flip=False, augment_distortion_factor=0.25,
-             patch_shape=False, skip_blank=True, permute=False):
+def add_data(x_list, y_list, data_file, index, augment=None, patch_shape=False, skip_blank=True):
     """
     Adds data from the data file to the given lists of feature and target data
     :param skip_blank: Data will not be added if the truth vector is all zeros (default is True).
@@ -198,30 +189,28 @@ def add_data(x_list, y_list, data_file, index, augment=False, augment_flip=False
     :param y_list: list of data to which the target data from the data_file will be appended.
     :param data_file: hdf5 data file.
     :param index: index of the data file from which to extract the data.
-    :param augment: if True, data will be augmented according to the other augmentation parameters (augment_flip and
-    augment_distortion_factor)
-    :param augment_flip: if True and augment is True, then the data will be randomly flipped along the x, y and z axis
-    :param augment_distortion_factor: if augment is True, this determines the standard deviation from the original
-    that the data will be distorted (in a stretching or shrinking fashion). Set to None, False, or 0 to prevent the
-    augmentation from distorting the data in this way.
-    :param permute: will randomly permute the data (data must be 3D cube)
+    :param augment: if not None, data will be augmented according to the augmentation parameters
     :return:
     """
     data, truth = get_data_from_file(data_file, index, patch_shape=patch_shape)
-    if augment:
+    if augment is not None:
         if patch_shape is not None:
             affine = data_file.root.affine[index[0]]
         else:
             affine = data_file.root.affine[index]
-        data, truth = augment_data(data, truth, affine, flip=augment_flip, scale_deviation=augment_distortion_factor)
+        data, truth = augment_data(data, truth, affine,
+                                   flip=augment['flip'],
+                                   scale_deviation=augment['scale'],
+                                   translate_deviation=augment['translate'],
+                                   rotate_deviation=augment['rotate'])
 
-    if permute:
-        if data.shape[-3] != data.shape[-2] or data.shape[-2] != data.shape[-1]:
-            raise ValueError("To utilize permutations, data array must be in 3D cube shape with all dimensions having "
-                             "the same length.")
-        data, truth = random_permutation_x_y(data, truth[np.newaxis])
-    else:
-        truth = truth[np.newaxis]
+        if augment["permute"] is not None:
+            if data.shape[-3] != data.shape[-2] or data.shape[-2] != data.shape[-1]:
+                raise ValueError("To utilize permutations, data array must be in 3D cube shape with all dimensions having "
+                                 "the same length.")
+            data, truth = random_permutation_x_y(data, truth[np.newaxis])
+        else:
+            truth = truth[np.newaxis]
 
     if not skip_blank or np.any(truth != 0):
         x_list.append(data)

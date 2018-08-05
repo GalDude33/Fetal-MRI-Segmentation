@@ -30,11 +30,17 @@ config["patience"] = 10  # learning rate will be reduced after this many epochs 
 config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
 config["initial_learning_rate"] = 5e-4
 config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
-config["validation_split"] = 0.8  # portion of the data that will be used for training
-config["flip"] = False  # augments the data by randomly flipping an axis during
-config["permute"] = True  # data shape must be a cube. Augments the data by permuting in various directions
-config["distort"] = None  # switch to None if you want no distortion
-config["augment"] = config["flip"] or config["distort"]
+config["validation_split"] = 0.90  # portion of the data that will be used for training
+
+config["augment"] = {
+    "permute": True,  # data shape must be a cube. Augments the data by permuting in various directions
+    "flip": False,  # augments the data by randomly flipping an axis during
+    "scale": None,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
+    "translate": None,  # i.e 0.10 for 10%, std of translation factor, switch to None if you want no translation
+    "rotate": None  # std of angle rotation, switch to None if you want no rotation
+}
+config["augment"] = config["augment"] if any(config["augment"].values()) else None
+
 config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
 config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
 config["skip_blank"] = True  # if True, then patches without any target will be skipped
@@ -49,11 +55,13 @@ config["overwrite"] = False  # If True, will previous files. If False, will use 
 def fetch_training_data_files(return_subject_ids=False):
     training_data_files = list()
     subject_ids = list()
-    for subject_dir in glob.glob(os.path.join(os.path.dirname(__file__), "data", "preprocessed", "*", "*")):
+    # for subject_dir in glob.glob(os.path.join(os.path.dirname(__file__), "data", "preprocessed", "*", "*")):
+    for subject_dir in glob.glob(
+            os.path.join("/home/galdude33/Lab/workspace/3DUnetCNN/data/cut_scans_2", "*")):
         subject_ids.append(os.path.basename(subject_dir))
         subject_files = list()
         for modality in config["training_modalities"] + ["truth"]:
-            subject_files.append(os.path.join(subject_dir, modality + ".nii.gz"))
+            subject_files.append(os.path.join(subject_dir, modality + ".nii"))
         training_data_files.append(tuple(subject_files))
     if return_subject_ids:
         return training_data_files, subject_ids
@@ -92,11 +100,8 @@ def main(overwrite=False):
         validation_batch_size=config["validation_batch_size"],
         validation_patch_overlap=config["validation_patch_overlap"],
         training_patch_start_offset=config["training_patch_start_offset"],
-        permute=config["permute"],
         augment=config["augment"],
-        skip_blank=config["skip_blank"],
-        augment_flip=config["flip"],
-        augment_distortion_factor=config["distort"])
+        skip_blank=config["skip_blank"])
 
     # run training
     train_model(model=model,
