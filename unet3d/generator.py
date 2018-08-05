@@ -204,7 +204,7 @@ def add_data(x_list, y_list, data_file, index, augment=None, patch_shape=False, 
                                    translate_deviation=augment['translate'],
                                    rotate_deviation=augment['rotate'])
 
-        if augment["permute"] is not None:
+        if augment["permute"] is not None and augment["permute"]:
             if data.shape[-3] != data.shape[-2] or data.shape[-2] != data.shape[-1]:
                 raise ValueError("To utilize permutations, data array must be in 3D cube shape with all dimensions having "
                                  "the same length.")

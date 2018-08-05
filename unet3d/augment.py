@@ -123,7 +123,7 @@ def augment_data(data, truth, affine, scale_deviation=None, translate_deviation=
         rotate_factor = np.deg2rad(rotate_factor)
     else:
         rotate_factor = None
-    if flip:
+    if flip is not None and flip:
         flip_axis = random_flip_dimensions(n_dim)
     else:
         flip_axis = None
