@@ -38,6 +38,7 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
                 batch.append(patch)
                 i += 1
             prediction = predict(model, np.asarray(batch), permute=permute)
+            prediction = np.expand_dims(prediction, -2)
             batch = list()
             for predicted_patch in prediction:
                 predictions.append(predicted_patch)
@@ -45,7 +46,7 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
 
     ind_offset = np.subtract(patch_shape[-3:], model.output_shape[-3:-1] + (1,)) // 2
     indices = [np.add(ind, ind_offset) for ind in indices]
-    data_shape = list(data.shape[-3:])
+    data_shape = list(data.shape[-3:]) + [model.output_shape[-1]]
     return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
 
 
@@ -53,7 +54,7 @@ def get_prediction_labels(prediction, threshold=0.5, labels=None):
     n_samples = prediction.shape[0]
     label_arrays = []
     for sample_number in range(n_samples):
-        label_data = np.argmax(prediction[sample_number], axis=0) + 1
+        label_data = np.argmax(prediction[sample_number], axis=1)
         label_data[np.max(prediction[sample_number], axis=0) < threshold] = 0
         if labels:
             for value in np.unique(label_data).tolist()[1:]:
@@ -84,8 +85,8 @@ def predict_from_data_file_and_write_image(model, open_data_file, index, out_fil
 
 
 def prediction_to_image(prediction, label_map=False, threshold=0.5, labels=None):
-    if prediction.shape[1] == 1:
-        data = prediction[0, 0]
+    if prediction.shape[0] == 1:
+        data = prediction[0]
         if label_map:
             label_map_data = np.zeros(prediction[0, 0].shape, np.int8)
             if labels:
@@ -143,8 +144,8 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         prediction = predict(model, test_data, permute=permute)
     else:
         prediction = patch_wise_prediction(model=model, data=test_data, overlap=overlap, permute=permute)[np.newaxis]
-    prediction_image = prediction_to_image(prediction, label_map=output_label_map, threshold=threshold,
-                                           labels=labels)
+    prediction = np.argmax(prediction, axis=-1)
+    prediction_image = get_image(prediction)
     if isinstance(prediction_image, list):
         for i, image in enumerate(prediction_image):
             image.to_filename(os.path.join(output_dir, "prediction_{0}.nii.gz".format(i + 1)))

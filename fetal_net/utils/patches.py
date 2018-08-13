@@ -1,4 +1,5 @@
 import numpy as np
+from tqdm import tqdm
 
 
 def compute_patch_indices(image_shape, patch_size, overlap, start=None):
@@ -83,23 +84,22 @@ def reconstruct_from_patches(patches, patch_indices, data_shape, default_value=0
     :return: numpy array containing the data reconstructed by the patches.
     """
     data = np.ones(data_shape) * default_value
-    image_shape = data_shape[-3:]
+    image_shape = data_shape[-4:-1]
     count = np.zeros(data_shape, dtype=np.int)
-    for patch, index in zip(patches, patch_indices):
-        image_patch_shape = patch.shape[-3:]
+    for patch, index in tqdm(zip(patches, patch_indices)):
+        image_patch_shape = patch.shape[-4:-1]
         if np.any(index < 0):
             fix_patch = np.asarray((index < 0) * np.abs(index), dtype=np.int)
-            patch = patch[..., fix_patch[0]:, fix_patch[1]:, fix_patch[2]:]
+            patch = patch[fix_patch[0]:, fix_patch[1]:, fix_patch[2]:, ...]
             index[index < 0] = 0
         if np.any((index + image_patch_shape) >= image_shape):
             fix_patch = np.asarray(image_patch_shape - (((index + image_patch_shape) >= image_shape)
                                                         * ((index + image_patch_shape) - image_shape)), dtype=np.int)
-            patch = patch[..., :fix_patch[0], :fix_patch[1], :fix_patch[2]]
+            patch = patch[:fix_patch[0], :fix_patch[1], :fix_patch[2], ...]
         patch_index = np.zeros(data_shape, dtype=np.bool)
-        patch_index[...,
-                    index[0]:index[0]+patch.shape[-3],
-                    index[1]:index[1]+patch.shape[-2],
-                    index[2]:index[2]+patch.shape[-1]] = True
+        patch_index[index[0]:index[0]+patch.shape[-4],
+                    index[1]:index[1]+patch.shape[-3],
+                    index[2]:index[2]+patch.shape[-2], ...] = True
         patch_data = np.zeros(data_shape)
         patch_data[patch_index] = patch.flatten()
 
