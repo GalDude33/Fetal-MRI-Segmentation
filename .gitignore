@@ -10,7 +10,6 @@ brats/models
 data.hdf5
 *.log
 *.h5
-*.ipynb
 *.pyc
 *.json
 test_dir
