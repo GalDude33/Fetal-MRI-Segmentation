@@ -1,9 +1,11 @@
 import os
 
-from unet3d.prediction import run_validation_cases
-import argparse
+from fetal_net.prediction import run_validation_cases
 
-def main(config):
+from train_fetal import config
+
+
+def main():
     prediction_dir = os.path.abspath("prediction")
     run_validation_cases(validation_keys_file=config["validation_file"],
                          model_file=config["model_file"],
@@ -15,17 +17,4 @@ def main(config):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Choose evaluation model.')
-    parser.add_argument('--model', type=str, default='isensee2017', required=False,
-                        help='Choose model [unet3d, isensee2017]')
-    args = parser.parse_args()
-    if args.model == 'unet3d':
-        import train
-        config = train.config
-    elif args.model == 'isensee2017':
-        import train_isensee2017
-        config = train_isensee2017.config
-    else:
-        raise Exception('Unknown model')
-
-    main(config)
+    main()

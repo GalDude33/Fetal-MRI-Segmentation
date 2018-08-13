@@ -4,7 +4,7 @@ import numpy as np
 import keras.backend as K
 
 
-from unet3d.metrics import weighted_dice_coefficient
+from fetal_net.metrics import weighted_dice_coefficient
 
 
 class TestWeightedDice(TestCase):

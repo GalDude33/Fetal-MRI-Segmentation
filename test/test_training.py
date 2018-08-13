@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 
-from unet3d.training import get_callbacks
+from fetal_net.training import get_callbacks
 
 
 class TestCallbakcs(TestCase):

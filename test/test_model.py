@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from unet3d.model import unet_model_3d
+from fetal_net.model import unet_model_3d
 
 
 class TestModel(TestCase):

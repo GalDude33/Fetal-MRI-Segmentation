@@ -3,7 +3,7 @@ import numpy as np
 
 from unittest import TestCase
 
-from unet3d.utils.patches import compute_patch_indices, get_patch_from_3d_data, reconstruct_from_patches
+from fetal_net.utils.patches import compute_patch_indices, get_patch_from_3d_data, reconstruct_from_patches
 
 
 class TestPrediction(TestCase):

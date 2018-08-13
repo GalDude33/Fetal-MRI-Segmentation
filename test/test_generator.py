@@ -3,9 +3,9 @@ from unittest import TestCase
 
 import numpy as np
 
-from unet3d.data import add_data_to_storage, create_data_file
-from unet3d.generator import get_multi_class_labels, get_training_and_validation_generators
-from unet3d.augment import generate_permutation_keys, permute_data, reverse_permute_data
+from fetal_net.data import add_data_to_storage, create_data_file
+from fetal_net.generator import get_multi_class_labels, get_training_and_validation_generators
+from fetal_net.augment import generate_permutation_keys, permute_data, reverse_permute_data
 
 
 class TestDataGenerator(TestCase):
@@ -72,8 +72,7 @@ class TestDataGenerator(TestCase):
         batch_size = 3
         validation_batch_size = 3
 
-        generators = get_training_and_validation_generators(data_file=self.data_file,
-                                                            batch_size=batch_size,
+        generators = get_training_and_validation_generators(data_file=self.data_file, batch_size=batch_size,
                                                             n_labels=self.n_labels,
                                                             training_keys_file=self.training_keys_file,
                                                             validation_keys_file=self.validation_keys_file,
@@ -115,9 +114,8 @@ class TestDataGenerator(TestCase):
 
         generators = get_training_and_validation_generators(self.data_file, batch_size, self.n_labels,
                                                             self.training_keys_file, self.validation_keys_file,
-                                                            data_split=validation_split,
+                                                            patch_shape=patch_shape, data_split=validation_split,
                                                             validation_batch_size=validation_batch_size,
-                                                            patch_shape=patch_shape,
                                                             skip_blank=False)
         training_generator, validation_generator, n_training_steps, n_validation_steps = generators
 
@@ -145,11 +143,8 @@ class TestDataGenerator(TestCase):
 
         generators = get_training_and_validation_generators(self.data_file, batch_size, self.n_labels,
                                                             self.training_keys_file, self.validation_keys_file,
-                                                            data_split=validation_split,
+                                                            patch_shape=patch_shape, data_split=validation_split,
                                                             validation_batch_size=validation_batch_size,
-                                                            patch_shape=patch_shape,
-                                                            training_patch_start_offset=random_start,
-                                                            validation_patch_overlap=overlap,
                                                             skip_blank=False)
 
         training_generator, validation_generator, n_training_steps, n_validation_steps = generators
@@ -184,8 +179,7 @@ class TestDataGenerator(TestCase):
         self.create_data_file(len_x=5, len_y=5, len_z=5, n_channels=5)
         batch_size = 2
         generators = get_training_and_validation_generators(self.data_file, batch_size, self.n_labels,
-                                                            self.training_keys_file, self.validation_keys_file,
-                                                            permute=True)
+                                                            self.training_keys_file, self.validation_keys_file)
         training_generator, validation_generator, n_training_steps, n_validation_steps = generators
 
         for x in training_generator:

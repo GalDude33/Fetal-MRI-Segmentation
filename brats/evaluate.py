@@ -4,29 +4,22 @@ import os
 import glob
 import pandas as pd
 import matplotlib
+
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 
-def get_whole_tumor_mask(data):
+def get_fetal_envelope_mask(data):
     return data > 0
 
 
-def get_tumor_core_mask(data):
-    return np.logical_or(data == 1, data == 4)
-
-
-def get_enhancing_tumor_mask(data):
-    return data == 4
-
-
 def dice_coefficient(truth, prediction):
-    return 2 * np.sum(truth * prediction)/(np.sum(truth) + np.sum(prediction))
+    return 2 * np.sum(truth * prediction) / (np.sum(truth) + np.sum(prediction))
 
 
 def main():
-    header = ("WholeTumor",)
-    masking_functions = (get_whole_tumor_mask,)
+    header = ("FetalEnvelope",)
+    masking_functions = (get_fetal_envelope_mask,)
     rows = list()
     subject_ids = list()
     for case_folder in glob.glob("prediction/*"):
