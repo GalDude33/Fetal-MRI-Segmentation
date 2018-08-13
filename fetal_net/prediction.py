@@ -23,10 +23,11 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
     patch_shape = tuple([int(dim) for dim in model.input.shape[-3:]])
     predictions = list()
 
-    output_shape = list(data.shape[-3:])
+    model_prediction_shape = model.output_shape[-3:-1] + (1,)
 
+    overlap = np.subtract(model_prediction_shape, (overlap, overlap, 0))
     indices = compute_patch_indices(data.shape[-3:], patch_size=patch_shape,
-                                    overlap=patch_shape-np.array([8, 8, 1]))
+                                    overlap=np.subtract(patch_shape, overlap))
     batch = list()
     i = 0
 
@@ -42,9 +43,10 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
                 predictions.append(predicted_patch)
             pbar.update(batch_size)
 
-    ind_offset = np.subtract(patch_shape[-3:], output_shape[-3:]) // 2
+    ind_offset = np.subtract(patch_shape[-3:], model.output_shape[-3:-1] + (1,)) // 2
     indices = [np.add(ind, ind_offset) for ind in indices]
-    return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=output_shape)
+    data_shape = list(data.shape[-3:])
+    return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
 
 
 def get_prediction_labels(prediction, threshold=0.5, labels=None):
@@ -111,7 +113,7 @@ def multi_class_prediction(prediction, affine):
 
 
 def run_validation_case(data_index, output_dir, model, data_file, training_modalities,
-                        output_label_map=False, threshold=0.5, labels=None, overlap=16, permute=False):
+                        output_label_map=False, threshold=0.5, labels=None, overlap=0, permute=False):
     """
     Runs a test case and writes predicted images to file.
     :param data_index: Index from of the list of test cases to get an image prediction from.
@@ -151,7 +153,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
 
 
 def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file,
-                         output_label_map=False, output_dir=".", threshold=0.5, overlap=16, permute=False):
+                         output_label_map=False, output_dir=".", threshold=0.5, overlap=0, permute=False):
     validation_indices = pickle_load(validation_keys_file)
     model = load_old_model(model_file)
     data_file = tables.open_file(hdf5_file, "r")
