@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 from keras.utils import to_categorical
 
+from fetal_net.utils import crop_img
 from fetal_net.utils.utils import resize, read_img
 from .utils import pickle_dump, pickle_load
 from .utils.patches import compute_patch_indices, get_random_nd_index, get_patch_from_3d_data
@@ -15,7 +16,7 @@ from .augment import augment_data, random_permutation_x_y, get_image
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank=True, truth_index=-1,
-                                           truth_downsample=None):
+                                           truth_downsample=None, truth_crop=True):
     """
     Creates the training and validation generators that can be used when training the model.
     :param truth_downsample:
@@ -63,13 +64,15 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                         patch_shape=patch_shape,
                                         skip_blank=skip_blank,
                                         truth_index=truth_index,
-                                        truth_downsample=truth_downsample)
+                                        truth_downsample=truth_downsample,
+                                        truth_crop=truth_crop)
     validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
                                           n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                                           skip_blank=skip_blank, truth_index=truth_index,
-                                          truth_downsample=truth_downsample)
+                                          truth_downsample=truth_downsample,
+                                          truth_crop=truth_crop)
 
-    patches_per_img_per_batch = 10
+    patches_per_img_per_batch = 100
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
     print("Number of training steps: ", num_training_steps)
@@ -122,7 +125,7 @@ def split_list(input_list, split=0.8, shuffle_list=True):
 
 
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
-                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None):
+                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True):
     orig_index_list = index_list
     while True:
         x_list = list()
@@ -144,7 +147,7 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
 
 
 def add_data(x_list, y_list, data_file, index, truth_index,
-             augment=None, patch_shape=None, skip_blank=True, truth_downsample=None):
+             augment=None, patch_shape=None, skip_blank=True, truth_downsample=None, truth_crop=True):
     """
     Adds data from the data file to the given lists of feature and target data
     :param truth_downsample:
@@ -180,14 +183,19 @@ def add_data(x_list, y_list, data_file, index, truth_index,
     ]
     data = get_patch_from_3d_data(data, patch_shape, patch_corner)
 
-    truth_shape = patch_shape[:-1]+(1,)
+    truth_shape = patch_shape[:-1] + (1,)
     truth = get_patch_from_3d_data(truth,
                                    truth_shape,
                                    patch_corner + np.array((0, 0, truth_index)))
     if truth_downsample is not None and truth_downsample > 1:
         new_shape = np.array(truth_shape)
         new_shape[:-1] = new_shape[:-1] / truth_downsample
-        truth = resize(get_image(truth), new_shape=new_shape).get_data()
+        if truth_crop:
+            truth = get_patch_from_3d_data(truth,
+                                           new_shape,
+                                           list(np.subtract(truth_shape[:2], new_shape[:2]) // 2) + [1])
+        else:
+            truth = resize(get_image(truth), new_shape=new_shape).get_data()
 
     if not skip_blank or np.any(truth != 0):
         x_list.append(data)

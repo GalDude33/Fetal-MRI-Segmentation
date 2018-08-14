@@ -12,6 +12,7 @@ config["patch_shape"] = (64, 64)  # switch to None to train on the whole image
 config["patch_depth"] = 5
 config["truth_index"] = 2
 config["truth_downsample"] = 8
+config["crop"] = True  # if true will crop sample
 
 config["labels"] = (1,)  # the label numbers on the input image
 config["n_labels"] = len(config["labels"])
@@ -33,7 +34,7 @@ config["validation_split"] = 0.90  # portion of the data that will be used for t
 config["augment"] = {
     "flip": False,  # augments the data by randomly flipping an axis during
     "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
-    "scale": 0.20,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
+    "scale": 0.10,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
     "translate": 0.10,  # i.e 0.10 for 10%, std of translation factor, switch to None if you want no translation
     "rotate": (0, 0, 7)  # std of angle rotation, switch to None if you want no rotation
 }
@@ -56,8 +57,7 @@ def fetch_training_data_files(return_subject_ids=False):
     training_data_files = list()
     subject_ids = list()
     # for subject_dir in glob.glob(os.path.join(os.path.dirname(__file__), "data", "preprocessed", "*", "*")):
-    for subject_dir in glob.glob(
-            os.path.join(config["scans_dir"], "*")):
+    for subject_dir in glob.glob(os.path.join(config["scans_dir"], "*")):
         subject_ids.append(os.path.basename(subject_dir))
         subject_files = list()
         for modality in config["training_modalities"] + ["truth"]:
@@ -100,7 +100,8 @@ def main(overwrite=False):
         augment=config["augment"],
         skip_blank=config["skip_blank"],
         truth_index=config["truth_index"],
-        truth_downsample=config["truth_downsample"])
+        truth_downsample=config["truth_downsample"],
+        truth_crop=config["crop"])
 
     # run training
     train_model(model=model,

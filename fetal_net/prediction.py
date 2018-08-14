@@ -5,7 +5,7 @@ import numpy as np
 import tables
 from tqdm import tqdm
 
-from fetal_net.utils.utils import get_image
+from fetal_net.utils.utils import get_image, resize
 from .training import load_old_model
 from .utils import pickle_load
 from .utils.patches import reconstruct_from_patches, get_patch_from_3d_data, compute_patch_indices
@@ -23,9 +23,9 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
     patch_shape = tuple([int(dim) for dim in model.input.shape[-3:]])
     predictions = list()
 
-    model_prediction_shape = model.output_shape[-3:-1] + (1,)
+    model_prediction_shape = model.output_shape[-3:-1] + (1,) #patch_shape[-3:-1] #[64,64]#
 
-    overlap = np.subtract(model_prediction_shape, (overlap, overlap, 0))
+    overlap = np.subtract(model_prediction_shape+(1,), (overlap, overlap, 0))
     indices = compute_patch_indices(data.shape[-3:], patch_size=patch_shape,
                                     overlap=np.subtract(patch_shape, overlap))
     batch = list()
@@ -39,12 +39,19 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
                 i += 1
             prediction = predict(model, np.asarray(batch), permute=permute)
             prediction = np.expand_dims(prediction, -2)
+
+            if prediction.shape[-3:-1] < model_prediction_shape:
+                prediction = resize(get_image(prediction.squeeze()),
+                                    new_shape=model_prediction_shape+(2,),
+                                    interpolation='nearest').get_data()
+                prediction = np.expand_dims(np.expand_dims(prediction, axis=0), axis=-2)
+
             batch = list()
             for predicted_patch in prediction:
                 predictions.append(predicted_patch)
             pbar.update(batch_size)
 
-    ind_offset = np.subtract(patch_shape[-3:], model.output_shape[-3:-1] + (1,)) // 2
+    ind_offset = np.subtract(patch_shape[-3:], model_prediction_shape + (1,)) // 2
     indices = [np.add(ind, ind_offset) for ind in indices]
     data_shape = list(data.shape[-3:]) + [model.output_shape[-1]]
     return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
@@ -133,10 +140,10 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
 
     test_data = np.asarray([data_file.root.data[data_index]])
     for i, modality in enumerate(training_modalities):
-        image = get_image(test_data[0, i])
+        image = get_image(test_data[i])
         image.to_filename(os.path.join(output_dir, "data_{0}.nii.gz".format(modality)))
 
-    test_truth = get_image(data_file.root.truth[data_index][0])
+    test_truth = get_image(data_file.root.truth[data_index])
     test_truth.to_filename(os.path.join(output_dir, "truth.nii.gz"))
 
     patch_shape = tuple([int(dim) for dim in model.input.shape[-3:]])
@@ -145,6 +152,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     else:
         prediction = patch_wise_prediction(model=model, data=test_data, overlap=overlap, permute=permute)[np.newaxis]
     prediction = np.argmax(prediction, axis=-1)
+    prediction = prediction.squeeze()
     prediction_image = get_image(prediction)
     if isinstance(prediction_image, list):
         for i, image in enumerate(prediction_image):

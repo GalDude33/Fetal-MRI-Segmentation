@@ -49,7 +49,8 @@ def get_patch_from_3d_data(data, patch_shape, patch_index):
     image_shape = data.shape[-3:]
     if np.any(patch_index < 0) or np.any((patch_index + patch_shape) > image_shape):
         data, patch_index = fix_out_of_bound_patch_attempt(data, patch_shape, patch_index)
-    return data[..., patch_index[0]:patch_index[0]+patch_shape[0], patch_index[1]:patch_index[1]+patch_shape[1],
+    return data[..., patch_index[0]:patch_index[0]+patch_shape[0],
+                patch_index[1]:patch_index[1]+patch_shape[1],
                 patch_index[2]:patch_index[2]+patch_shape[2]]
 
 
@@ -86,7 +87,7 @@ def reconstruct_from_patches(patches, patch_indices, data_shape, default_value=0
     data = np.ones(data_shape) * default_value
     image_shape = data_shape[-4:-1]
     count = np.zeros(data_shape, dtype=np.int)
-    for patch, index in tqdm(zip(patches, patch_indices)):
+    for patch, index in tqdm(zip(patches, patch_indices), total=len(patches)):
         image_patch_shape = patch.shape[-4:-1]
         if np.any(index < 0):
             fix_patch = np.asarray((index < 0) * np.abs(index), dtype=np.int)
