@@ -1,3 +1,5 @@
+pandas
+matplotlib
 Keras>=2
 numpy>=1.12.1
 nilearn>=0.3.0
