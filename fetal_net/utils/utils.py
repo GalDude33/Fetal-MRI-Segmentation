@@ -9,6 +9,8 @@ from nilearn.image import reorder_img, new_img_like
 from .nilearn_custom_utils.nilearn_utils import crop_img_to
 from .sitk_utils import resample_to_spacing, calculate_origin_offset
 
+from scipy.ndimage import map_coordinates
+
 
 def get_image(data, affine=None, nib_class=nib.Nifti1Image):
     if affine is None:
@@ -90,3 +92,19 @@ def resize(image, new_shape, interpolation="linear"):
     np.fill_diagonal(new_affine, new_spacing.tolist() + [1])
     new_affine[:3, 3] += calculate_origin_offset(new_spacing, image.header.get_zooms())
     return new_img_like(image, new_data, affine=new_affine)
+
+
+def interpolate_affine_coords(img, coords, mode='nearest', order=0, cval=0):
+    in_vox_coords = np.array(np.meshgrid(*coords, indexing='ij'))
+    coords_last = in_vox_coords.transpose(1, 2, 3, 0)
+    mean_vox_coords = nib.affines.apply_affine(img.affine, coords_last)
+    coords_first_again = mean_vox_coords.transpose(3, 0, 1, 2)
+    resampled_mean_again = map_coordinates(img.get_fdata(),
+                                           coords_first_again,
+                                           mode=mode, order=order, cval=cval)
+    return resampled_mean_again
+
+
+def interpolate_affine_range(img, ranges, mode='nearest', order=0, cval=0):
+    return interpolate_affine_coords(img, coords=[range(s, e) for s, e in ranges],
+                                     mode=mode, order=order, cval=cval)

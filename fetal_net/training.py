@@ -9,11 +9,12 @@ from fetal_net.metrics import (dice_coefficient, dice_coefficient_loss, dice_coe
                                weighted_dice_coefficient_loss, weighted_dice_coefficient)
 
 K.set_image_dim_ordering('th')
+from multiprocessing import cpu_count
 
 
 # learning rate schedule
 def step_decay(epoch, initial_lrate, drop, epochs_drop):
-    return initial_lrate * math.pow(drop, math.floor((1+epoch)/float(epochs_drop)))
+    return initial_lrate * math.pow(drop, math.floor((1 + epoch) / float(epochs_drop)))
 
 
 def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0.5, learning_rate_epochs=None,
@@ -80,6 +81,9 @@ def train_model(model, model_file, training_generator, validation_generator, ste
                         epochs=n_epochs,
                         validation_data=validation_generator,
                         validation_steps=validation_steps,
+                        max_queue_size=10,
+                        workers=cpu_count()-1,
+                        use_multiprocessing=True,
                         callbacks=get_callbacks(model_file,
                                                 initial_learning_rate=initial_learning_rate,
                                                 learning_rate_drop=learning_rate_drop,

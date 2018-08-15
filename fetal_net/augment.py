@@ -4,7 +4,7 @@ from nilearn.image import new_img_like, resample_to_img
 import random
 import itertools
 
-from fetal_net.utils.utils import get_image
+from fetal_net.utils.utils import get_image, interpolate_affine_range
 
 
 def scale_image(image, scale_factor):
@@ -109,7 +109,8 @@ def distort_image(image, flip_axis=None, scale_factor=None, translate_factor=Non
     return image
 
 
-def augment_data(data, truth, scale_deviation=None, translate_deviation=None, rotate_deviation=None, flip=True):
+def augment_data(data, truth, scale_deviation=None, translate_deviation=None, rotate_deviation=None, flip=True,
+                 data_range=None, truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
@@ -131,17 +132,25 @@ def augment_data(data, truth, scale_deviation=None, translate_deviation=None, ro
         flip_axis = None
 
     image = get_image(data)
-    data = resample_to_img(distort_image(image, flip_axis=flip_axis,
-                                         scale_factor=scale_factor,
-                                         translate_factor=translate_factor,
-                                         rotate_factor=rotate_factor),
-                           image, interpolation="continuous").get_data()
+    distorted_image = distort_image(image, flip_axis=flip_axis,
+                                    scale_factor=scale_factor,
+                                    translate_factor=translate_factor,
+                                    rotate_factor=rotate_factor)
+    if data_range is None:
+        data = resample_to_img(distorted_image, image, interpolation="continuous", copy=False, clip=True).get_fdata()
+    else:
+        data = interpolate_affine_range(distorted_image, data_range, order=3, cval=np.min(data))
+
     truth_image = get_image(truth)
-    truth_data = resample_to_img(distort_image(truth_image, flip_axis=flip_axis,
-                                               scale_factor=scale_factor,
-                                               translate_factor=translate_factor,
-                                               rotate_factor=rotate_factor),
-                                 truth_image, interpolation="nearest").get_data()
+    distorted_truth_image = distort_image(truth_image, flip_axis=flip_axis,
+                                          scale_factor=scale_factor,
+                                          translate_factor=translate_factor,
+                                          rotate_factor=rotate_factor)
+    if truth_range is None:
+        truth_data = resample_to_img(distorted_truth_image, truth_image, interpolation="nearest", copy=False,
+                                     clip=True).get_data()
+    else:
+        truth_data = interpolate_affine_range(distorted_truth_image, truth_range)
     return data, truth_data
 
 

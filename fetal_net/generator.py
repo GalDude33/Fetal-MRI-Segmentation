@@ -6,17 +6,23 @@ import itertools
 import numpy as np
 from keras.utils import to_categorical
 
-from fetal_net.utils import crop_img
 from fetal_net.utils.utils import resize, read_img
 from .utils import pickle_dump, pickle_load
 from .utils.patches import compute_patch_indices, get_random_nd_index, get_patch_from_3d_data
 from .augment import augment_data, random_permutation_x_y, get_image
 
 
+class DataFileDummy:
+    def __init__(self, file):
+        self.data = [_ for _ in file.root.data]
+        self.truth = [_ for _ in file.root.truth]
+        self.root = self
+
+
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank=True, truth_index=-1,
-                                           truth_downsample=None, truth_crop=True):
+                                           truth_downsample=None, truth_crop=True, patches_per_img_per_batch=1):
     """
     Creates the training and validation generators that can be used when training the model.
     :param truth_downsample:
@@ -50,6 +56,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     if not validation_batch_size:
         validation_batch_size = batch_size
 
+    data_file = DataFileDummy(data_file)
+
     training_list, validation_list = get_validation_split(data_file,
                                                           data_split=data_split,
                                                           overwrite=overwrite,
@@ -72,7 +80,6 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                           truth_downsample=truth_downsample,
                                           truth_crop=truth_crop)
 
-    patches_per_img_per_batch = 100
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
     print("Number of training steps: ", num_training_steps)
@@ -161,12 +168,23 @@ def add_data(x_list, y_list, data_file, index, truth_index,
     :return:
     """
     data, truth = get_data_from_file(data_file, index, patch_shape=None)
+
+    # TODO: fix bounds
+    patch_corner = [
+        np.random.randint(low=low, high=high)
+        for low, high in zip((0, 0, 0)-np.array(patch_shape) // 3,
+                             truth.shape - 2*np.array(patch_shape)//3)  # - np.array(patch_shape) // 2)
+    ]
     if augment is not None:
+        data_range = [(start, start + size) for start, size in zip(patch_corner, patch_shape)]
+        truth_range = data_range[:2] + [(patch_corner[2] + truth_index,
+                                         patch_corner[2] + truth_index + 1)]
         data, truth = augment_data(data, truth,
                                    flip=augment['flip'],
                                    scale_deviation=augment['scale'],
                                    translate_deviation=augment['translate'],
-                                   rotate_deviation=augment['rotate'])
+                                   rotate_deviation=augment['rotate'],
+                                   data_range=data_range, truth_range=truth_range)
 
         if augment["permute"] is not None and augment["permute"]:
             if data.shape[-3] != data.shape[-2] or data.shape[-2] != data.shape[-1]:
@@ -174,22 +192,13 @@ def add_data(x_list, y_list, data_file, index, truth_index,
                     "To utilize permutations, data array must be in 3D cube shape with all dimensions having "
                     "the same length.")
             data, truth = random_permutation_x_y(data, truth)
+    else:
+        data, truth = extract_random_patch(data, patch_shape, truth, truth_crop)
 
-    # cut relevant patch
-    patch_corner = [
-        np.random.randint(low=low, high=high)
-        for low, high in zip(-np.array(patch_shape) // 2,
-                             truth.shape - np.array(patch_shape) // 2)
-    ]
-    data = get_patch_from_3d_data(data, patch_shape, patch_corner)
-
-    truth_shape = patch_shape[:-1] + (1,)
-    truth = get_patch_from_3d_data(truth,
-                                   truth_shape,
-                                   patch_corner + np.array((0, 0, truth_index)))
     if truth_downsample is not None and truth_downsample > 1:
+        truth_shape = patch_shape[:-1] + (1,)
         new_shape = np.array(truth_shape)
-        new_shape[:-1] = new_shape[:-1] / truth_downsample
+        new_shape[:-1] = new_shape[:-1] // truth_downsample
         if truth_crop:
             truth = get_patch_from_3d_data(truth,
                                            new_shape,
@@ -200,6 +209,25 @@ def add_data(x_list, y_list, data_file, index, truth_index,
     if not skip_blank or np.any(truth != 0):
         x_list.append(data)
         y_list.append(truth)
+
+
+def extract_patch(data, patch_corner, patch_shape, truth, truth_index):
+    data = get_patch_from_3d_data(data, patch_shape, patch_corner)
+    truth_shape = patch_shape[:-1] + (1,)
+    truth = get_patch_from_3d_data(truth,
+                                   truth_shape,
+                                   patch_corner + np.array((0, 0, truth_index)))
+    return data, truth
+
+
+def extract_random_patch(data, patch_shape, truth, truth_index):
+    # cut relevant patch
+    patch_corner = [
+        np.random.randint(low=low, high=high)
+        for low, high in zip((0, 0, 0),  # -np.array(patch_shape) // 2,
+                             truth.shape - np.array(patch_shape))  # - np.array(patch_shape) // 2)
+    ]
+    return extract_patch(data, patch_corner, patch_shape, truth, truth_index)
 
 
 def get_data_from_file(data_file, index, patch_shape=None):

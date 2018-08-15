@@ -23,6 +23,7 @@ config["input_shape"] = tuple(list(config["patch_shape"]) + [config["patch_depth
 config["truth_channel"] = config["nb_channels"]
 
 config["batch_size"] = 5
+config["patches_per_img_per_batch"] = 50
 config["validation_batch_size"] = 5
 config["n_epochs"] = 300  # cutoff the training after this many epochs
 config["patience"] = 20  # learning rate will be reduced after this many epochs if the validation loss is not improving
@@ -101,7 +102,8 @@ def main(overwrite=False):
         skip_blank=config["skip_blank"],
         truth_index=config["truth_index"],
         truth_downsample=config["truth_downsample"],
-        truth_crop=config["crop"])
+        truth_crop=config["crop"],
+        patches_per_img_per_batch=config["patches_per_img_per_batch"])
 
     # run training
     train_model(model=model,
