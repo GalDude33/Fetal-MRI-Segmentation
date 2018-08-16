@@ -139,7 +139,7 @@ def augment_data(data, truth, scale_deviation=None, translate_deviation=None, ro
     if data_range is None:
         data = resample_to_img(distorted_image, image, interpolation="continuous", copy=False, clip=True).get_fdata()
     else:
-        data = interpolate_affine_range(distorted_image, data_range, order=3, cval=np.min(data))
+        data = interpolate_affine_range(distorted_image, data_range, order=1, mode='constant', cval=np.min(data))
 
     truth_image = get_image(truth)
     distorted_truth_image = distort_image(truth_image, flip_axis=flip_axis,
@@ -150,7 +150,7 @@ def augment_data(data, truth, scale_deviation=None, translate_deviation=None, ro
         truth_data = resample_to_img(distorted_truth_image, truth_image, interpolation="nearest", copy=False,
                                      clip=True).get_data()
     else:
-        truth_data = interpolate_affine_range(distorted_truth_image, truth_range)
+        truth_data = interpolate_affine_range(distorted_truth_image, truth_range, order=0, mode='constant', cval=0)
     return data, truth_data
 
 
