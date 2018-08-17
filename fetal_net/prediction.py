@@ -40,7 +40,7 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
             prediction = predict(model, np.asarray(batch), permute=permute)
             prediction = np.expand_dims(prediction, -2)
 
-            if prediction.shape[-3:-1] < model_prediction_shape:
+            if prediction.shape[-4:-2] < model_prediction_shape:
                 prediction = resize(get_image(prediction.squeeze()),
                                     new_shape=model_prediction_shape+(2,),
                                     interpolation='nearest').get_data()
