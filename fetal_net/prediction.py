@@ -23,9 +23,9 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
     patch_shape = tuple([int(dim) for dim in model.input.shape[-3:]])
     predictions = list()
 
-    model_prediction_shape = model.output_shape[-3:-1] + (1,) #patch_shape[-3:-1] #[64,64]#
+    model_prediction_shape = model.output_shape[-3:-1] #patch_shape[-3:-1] #[64,64]#
 
-    overlap = np.subtract(model_prediction_shape+(1,), (overlap, overlap, 0))
+    overlap = np.subtract(model_prediction_shape + (1,), (overlap, overlap, 0))
     indices = compute_patch_indices(data.shape[-3:], patch_size=patch_shape,
                                     overlap=np.subtract(patch_shape, overlap))
     batch = list()

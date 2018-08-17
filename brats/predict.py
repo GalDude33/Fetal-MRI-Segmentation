@@ -2,7 +2,7 @@ import os
 
 from fetal_net.prediction import run_validation_cases
 
-from train_fetal import config
+from .train_fetal import config
 
 
 def main():
