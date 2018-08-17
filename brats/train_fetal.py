@@ -5,6 +5,7 @@ from fetal_net.data import write_data_to_file, open_data_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
 from fetal_net.training import load_old_model, train_model
+from pathlib import Path
 
 config = dict()
 # config["image_shape"] = (256, 256, 108)  # This determines what shape the images will be cropped/resampled to.
@@ -45,6 +46,8 @@ config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the firs
 config["skip_blank"] = True  # if True, then patches without any target will be skipped
 
 config["base_dir"] = './debug'
+APath(config["base_dir"]).mkdir(parents=True, exist_ok=True)
+
 config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
 config["model_file"] = os.path.join(config["base_dir"], "isensee_2017_model.h5")
 config["training_file"] = os.path.join(config["base_dir"], "isensee_training_ids.pkl")
