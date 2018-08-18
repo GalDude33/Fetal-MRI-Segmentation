@@ -34,7 +34,8 @@ def pad_samples(data_file, patch_shape, truth_downsample):
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank=True, truth_index=-1,
-                                           truth_downsample=None, truth_crop=True, patches_per_img_per_batch=1):
+                                           truth_downsample=None, truth_crop=True, patches_per_img_per_batch=1,
+                                           categorical=True):
     """
     Creates the training and validation generators that can be used when training the model.
     :param truth_downsample:
@@ -87,12 +88,14 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                         skip_blank=skip_blank,
                                         truth_index=truth_index,
                                         truth_downsample=truth_downsample,
-                                        truth_crop=truth_crop)
+                                        truth_crop=truth_crop,
+                                        categorical=categorical)
     validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
                                           n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                                           skip_blank=skip_blank, truth_index=truth_index,
                                           truth_downsample=truth_downsample,
-                                          truth_crop=truth_crop)
+                                          truth_crop=truth_crop,
+                                          categorical=categorical)
 
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
@@ -253,14 +256,15 @@ def get_data_from_file(data_file, index, patch_shape=None):
     return x, y
 
 
-def convert_data(x_list, y_list, n_labels=1, labels=None):
+def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True):
     x = np.asarray(x_list)
     y = np.asarray(y_list)
     # if n_labels == 1:
     #     y[y > 0] = 1
     # elif n_labels > 1:
     #     y = get_multi_class_labels(y, n_labels=n_labels, labels=labels)
-    y = to_categorical(y, 2)
+    if categorical:
+        y = to_categorical(y, 2)
     return x, y
 
 
