@@ -26,7 +26,7 @@ def pad_samples(data_file, patch_shape, truth_downsample):
     data_file.root.data = \
         [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=np.min(data))
          for data in data_file.root.data]
-    data_file.root.data = \
+    data_file.root.truth = \
         [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=np.min(truth))
          for truth in data_file.root.truth]
 
