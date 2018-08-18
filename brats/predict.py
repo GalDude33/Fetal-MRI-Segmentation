@@ -2,7 +2,9 @@ import os
 
 from fetal_net.prediction import run_validation_cases
 
-from .train_fetal import config
+from train_fetal import config
+
+overlap_factor = 1
 
 
 def main():
@@ -13,7 +15,8 @@ def main():
                          labels=config["labels"],
                          hdf5_file=config["data_file"],
                          output_label_map=True,
-                         output_dir=prediction_dir)
+                         output_dir=prediction_dir,
+                         overlap_factor=overlap_factor)
 
 
 if __name__ == "__main__":

@@ -198,7 +198,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
 
 
 def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file,
-                         output_label_map=False, output_dir=".", threshold=0.5, overlap=0, permute=False):
+                         output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0, permute=False):
     validation_indices = pickle_load(validation_keys_file)
     model = load_old_model(model_file)
     data_file = tables.open_file(hdf5_file, "r")
@@ -209,7 +209,7 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
             case_directory = os.path.join(output_dir, "validation_case_{}".format(index))
         run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
                             training_modalities=training_modalities, output_label_map=output_label_map, labels=labels,
-                            threshold=threshold, overlap_factor=overlap, permute=permute)
+                            threshold=threshold, overlap_factor=overlap_factor, permute=permute)
     data_file.close()
 
 
