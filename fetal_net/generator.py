@@ -19,10 +19,10 @@ class DataFileDummy:
 
 
 def pad_samples(data_file, patch_shape, truth_downsample):
-    output_shape = [patch_shape[0] / truth_downsample,
-                    patch_shape[1] / truth_downsample,
+    output_shape = [patch_shape[0] // truth_downsample,
+                    patch_shape[1] // truth_downsample,
                     1]
-    padding = np.ceil(np.subtract(patch_shape, output_shape) / 2)
+    padding = np.ceil(np.subtract(patch_shape, output_shape) / 2).astype(int)
     data_file.root.data = \
         [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=np.min(data))
          for data in data_file.root.data]
