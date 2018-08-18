@@ -1,5 +1,8 @@
+from multiprocessing import cpu_count
+
 import numpy as np
 from tqdm import tqdm
+from multiprocessing.dummy import Pool
 
 
 def compute_patch_indices(image_shape, patch_size, overlap, start=None):
@@ -14,6 +17,21 @@ def compute_patch_indices(image_shape, patch_size, overlap, start=None):
     stop = image_shape + start
     step = patch_size - overlap
     return get_set_of_patch_indices(start, stop, step)
+
+
+# def compute_patch_indices_full(image_shape, patch_size, overlap, start=None):
+#     if isinstance(overlap, int):
+#         overlap = np.asarray([overlap] * len(image_shape))
+#     step = patch_size - overlap
+#     max_index = image_shape - patch_size
+#     if start is None:
+#         n_patches = np.ceil(max_index / step)
+#         overflow = step * n_patches - image_shape
+#         start = -np.ceil(overflow / 2)
+#     elif isinstance(start, int):
+#         start = np.asarray([start] * len(image_shape))
+#     stop = max_index - start
+#     return get_set_of_patch_indices(start, stop, step)
 
 
 def get_set_of_patch_indices(start, stop, step):
@@ -84,32 +102,54 @@ def reconstruct_from_patches(patches, patch_indices, data_shape, default_value=0
     be overwritten.
     :return: numpy array containing the data reconstructed by the patches.
     """
-    data = np.ones(data_shape) * default_value
-    image_shape = data_shape[-4:-1]
+
+    def compute_full_picture(patches, patch_indices, data_shape):
+        data = np.zeros(data_shape)
+        image_shape = data_shape[-4:-1]
+        count = np.zeros(data_shape, dtype=np.int)
+        for patch, index in zip(patches, patch_indices):
+            image_patch_shape = patch.shape[-4:-1]
+            if np.any(index < 0):
+                fix_patch = np.asarray((index < 0) * np.abs(index), dtype=np.int)
+                patch = patch[fix_patch[0]:, fix_patch[1]:, fix_patch[2]:, ...]
+                index[index < 0] = 0
+            if np.any((index + image_patch_shape) >= image_shape):
+                fix_patch = np.asarray(image_patch_shape - (((index + image_patch_shape) >= image_shape)
+                                                            * ((index + image_patch_shape) - image_shape)),
+                                       dtype=np.int)
+                patch = patch[:fix_patch[0], :fix_patch[1], :fix_patch[2], ...]
+            patch_index = np.zeros(data_shape, dtype=np.bool)
+            patch_index[index[0]:index[0] + patch.shape[-4],
+            index[1]:index[1] + patch.shape[-3],
+            index[2]:index[2] + patch.shape[-2], ...] = True
+            # patch_data = np.zeros(data_shape)
+            # patch_data[patch_index] = patch.flatten()
+            data[patch_index] += patch.flatten()
+
+            # new_data_index = np.logical_and(patch_index, np.logical_not(count > 0))
+            # data[new_data_index] = patch_data[new_data_index]
+            #
+            # averaged_data_index = np.logical_and(patch_index, count > 0)
+            # #if np.any(averaged_data_index):
+            #     data[averaged_data_index] = (data[averaged_data_index] * count[averaged_data_index] + patch_data[
+            #         averaged_data_index]) / (count[averaged_data_index] + 1)
+            count[patch_index] += 1
+        return data, count
+
+    workers = cpu_count()
+    pool = Pool(workers)
+    results = []
+    worker_len = int(len(patches) / workers)
+    for i in range(workers):
+        patches_i, patch_indices_i = patches[worker_len * i:worker_len * (i + 1)], \
+                                     patch_indices[worker_len * i:worker_len * (i + 1)]
+        results.append(pool.apply_async(compute_full_picture,
+                                        args=(patches_i, patch_indices_i, data_shape)))
+
+    data = np.zeros(data_shape)
     count = np.zeros(data_shape, dtype=np.int)
-    for patch, index in tqdm(zip(patches, patch_indices), total=len(patches)):
-        image_patch_shape = patch.shape[-4:-1]
-        if np.any(index < 0):
-            fix_patch = np.asarray((index < 0) * np.abs(index), dtype=np.int)
-            patch = patch[fix_patch[0]:, fix_patch[1]:, fix_patch[2]:, ...]
-            index[index < 0] = 0
-        if np.any((index + image_patch_shape) >= image_shape):
-            fix_patch = np.asarray(image_patch_shape - (((index + image_patch_shape) >= image_shape)
-                                                        * ((index + image_patch_shape) - image_shape)), dtype=np.int)
-            patch = patch[:fix_patch[0], :fix_patch[1], :fix_patch[2], ...]
-        patch_index = np.zeros(data_shape, dtype=np.bool)
-        patch_index[index[0]:index[0] + patch.shape[-4],
-                    index[1]:index[1] + patch.shape[-3],
-                    index[2]:index[2] + patch.shape[-2], ...] = True
-        patch_data = np.zeros(data_shape)
-        patch_data[patch_index] = patch.flatten()
-
-        new_data_index = np.logical_and(patch_index, np.logical_not(count > 0))
-        data[new_data_index] = patch_data[new_data_index]
-
-        averaged_data_index = np.logical_and(patch_index, count > 0)
-        if np.any(averaged_data_index):
-            data[averaged_data_index] = (data[averaged_data_index] * count[averaged_data_index] + patch_data[
-                averaged_data_index]) / (count[averaged_data_index] + 1)
-        count[patch_index] += 1
-    return data
+    for i in range(len(results)):
+        data_i, count_i = results[i].get()
+        data += data_i
+        count += count_i
+    return data / count
