@@ -1,15 +1,14 @@
-import os
 import copy
+import os
 from random import shuffle
-import itertools
 
 import numpy as np
 from keras.utils import to_categorical
 
-from fetal_net.utils.utils import resize, read_img
-from .utils import pickle_dump, pickle_load
-from .utils.patches import compute_patch_indices, get_random_nd_index, get_patch_from_3d_data
+from fetal_net.utils.utils import resize
 from .augment import augment_data, random_permutation_x_y, get_image
+from .utils import pickle_dump, pickle_load
+from .utils.patches import get_patch_from_3d_data
 
 
 class DataFileDummy:
@@ -17,6 +16,19 @@ class DataFileDummy:
         self.data = [_ for _ in file.root.data]
         self.truth = [_ for _ in file.root.truth]
         self.root = self
+
+
+def pad_samples(data_file, patch_shape, truth_downsample):
+    output_shape = [patch_shape[0] / truth_downsample,
+                    patch_shape[1] / truth_downsample,
+                    1]
+    padding = np.ceil(np.subtract(patch_shape, output_shape) / 2)
+    data_file.root.data = \
+        [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=np.min(data))
+         for data in data_file.root.data]
+    data_file.root.data = \
+        [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=np.min(truth))
+         for truth in data_file.root.truth]
 
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
@@ -57,6 +69,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
         validation_batch_size = batch_size
 
     data_file = DataFileDummy(data_file)
+
+    pad_samples(data_file, patch_shape, truth_downsample)
 
     training_list, validation_list = get_validation_split(data_file,
                                                           data_split=data_split,
@@ -169,11 +183,9 @@ def add_data(x_list, y_list, data_file, index, truth_index,
     """
     data, truth = get_data_from_file(data_file, index, patch_shape=None)
 
-    # TODO: fix bounds
     patch_corner = [
         np.random.randint(low=low, high=high)
-        for low, high in zip((0, 0, 0)-np.array(patch_shape) // 3,
-                             truth.shape - 2*np.array(patch_shape)//3)  # - np.array(patch_shape) // 2)
+        for low, high in zip((0, 0, 0), truth.shape - np.array(patch_shape))  # - np.array(patch_shape) // 2)
     ]
     if augment is not None:
         data_range = [(start, start + size) for start, size in zip(patch_corner, patch_shape)]
