@@ -135,8 +135,9 @@ def augment_data(data, truth, data_min, scale_deviation=None, translate_deviatio
     else:
         flip_axis = None
 
-    image = get_image(data)
-    distorted_data, distorted_affine = distort_image(image.get_data(), image.affine, flip_axis=flip_axis,
+    image, affine = data, np.eye(4)
+    distorted_data, distorted_affine = distort_image(image, affine,
+                                                     flip_axis=flip_axis,
                                                      scale_factor=scale_factor,
                                                      translate_factor=translate_factor,
                                                      rotate_factor=rotate_factor)
@@ -147,8 +148,8 @@ def augment_data(data, truth, data_min, scale_deviation=None, translate_deviatio
         data = interpolate_affine_range(distorted_data, distorted_affine, data_range, order=1, mode='constant',
                                         cval=data_min)
 
-    truth_image = get_image(truth)
-    distorted_truth_data, distorted_truth_affine = distort_image(truth_image.get_data(), truth_image.affine,
+    truth_image, truth_affine = truth, np.eye(4)
+    distorted_truth_data, distorted_truth_affine = distort_image(truth_image, truth_affine,
                                                                  flip_axis=flip_axis,
                                                                  scale_factor=scale_factor,
                                                                  translate_factor=translate_factor,
