@@ -113,7 +113,7 @@ def distort_image(data, affine, flip_axis=None, scale_factor=None, translate_fac
     return data, affine
 
 
-def augment_data(data, truth, scale_deviation=None, translate_deviation=None, rotate_deviation=None, flip=True,
+def augment_data(data, truth, data_min, scale_deviation=None, translate_deviation=None, rotate_deviation=None, flip=True,
                  data_range=None, truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
@@ -145,7 +145,7 @@ def augment_data(data, truth, scale_deviation=None, translate_deviation=None, ro
                                copy=False, clip=True).get_fdata()
     else:
         data = interpolate_affine_range(distorted_data, distorted_affine, data_range, order=1, mode='constant',
-                                        cval=np.min(data))
+                                        cval=data_min)
 
     truth_image = get_image(truth)
     distorted_truth_data, distorted_truth_affine = distort_image(truth_image.get_data(), truth_image.affine,

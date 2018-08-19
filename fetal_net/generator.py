@@ -12,6 +12,7 @@ from .utils.patches import get_patch_from_3d_data
 class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
+        self.data_min = [np.min(_) for _ in self.data]
         self.truth = [_ for _ in file.root.truth]
         self.root = self
 
@@ -22,10 +23,10 @@ def pad_samples(data_file, patch_shape, truth_downsample):
                     1]
     padding = np.ceil(np.subtract(patch_shape, output_shape) / 2).astype(int)
     data_file.root.data = \
-        [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=np.min(data))
-         for data in data_file.root.data]
+        [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=data_min)
+         for data, data_min in zip(data_file.root.data, data_file.root.data_min)]
     data_file.root.truth = \
-        [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=np.min(truth))
+        [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
          for truth in data_file.root.truth]
 
 
@@ -198,6 +199,7 @@ def add_data(x_list, y_list, data_file, index, truth_index,
         truth_range = data_range[:2] + [(patch_corner[2] + truth_index,
                                          patch_corner[2] + truth_index + 1)]
         data, truth = augment_data(data, truth,
+                                   data_min=data_file.root.data_min[index],
                                    flip=augment['flip'],
                                    scale_deviation=augment['scale'],
                                    translate_deviation=augment['translate'],
