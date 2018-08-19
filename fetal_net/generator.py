@@ -141,7 +141,7 @@ def get_validation_split(data_file, training_file, validation_file, data_split=0
 
 def split_list(input_list, split=0.8, shuffle_list=True):
     if shuffle_list:
-        shuffle(input_list)
+        random.shuffle(input_list)
     n_training = int(len(input_list) * split)
     training = input_list[:n_training]
     testing = input_list[n_training:]
