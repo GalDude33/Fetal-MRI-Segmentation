@@ -68,8 +68,8 @@ def get_patch_from_3d_data(data, patch_shape, patch_index):
     if np.any(patch_index < 0) or np.any((patch_index + patch_shape) > image_shape):
         data, patch_index = fix_out_of_bound_patch_attempt(data, patch_shape, patch_index)
     return data[..., patch_index[0]:patch_index[0] + patch_shape[0],
-           patch_index[1]:patch_index[1] + patch_shape[1],
-           patch_index[2]:patch_index[2] + patch_shape[2]]
+                     patch_index[1]:patch_index[1] + patch_shape[1],
+                     patch_index[2]:patch_index[2] + patch_shape[2]]
 
 
 def fix_out_of_bound_patch_attempt(data, patch_shape, patch_index, ndim=3):
@@ -120,8 +120,8 @@ def reconstruct_from_patches(patches, patch_indices, data_shape, default_value=0
                 patch = patch[:fix_patch[0], :fix_patch[1], :fix_patch[2], ...]
             patch_index = np.zeros(data_shape, dtype=np.bool)
             patch_index[index[0]:index[0] + patch.shape[-4],
-            index[1]:index[1] + patch.shape[-3],
-            index[2]:index[2] + patch.shape[-2], ...] = True
+                        index[1]:index[1] + patch.shape[-3],
+                        index[2]:index[2] + patch.shape[-2], ...] = True
             # patch_data = np.zeros(data_shape)
             # patch_data[patch_index] = patch.flatten()
             data[patch_index] += patch.flatten()
@@ -139,10 +139,9 @@ def reconstruct_from_patches(patches, patch_indices, data_shape, default_value=0
     workers = cpu_count()
     pool = Pool(workers)
     results = []
-    worker_len = int(len(patches) / workers)
     for i in range(workers):
-        patches_i, patch_indices_i = patches[worker_len * i:worker_len * (i + 1)], \
-                                     patch_indices[worker_len * i:worker_len * (i + 1)]
+        patches_i, patch_indices_i = patches[i::workers], \
+                                     patch_indices[i::workers]
         results.append(pool.apply_async(compute_full_picture,
                                         args=(patches_i, patch_indices_i, data_shape)))
 

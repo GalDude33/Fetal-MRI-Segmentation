@@ -1,3 +1,4 @@
+import itertools
 import os
 
 import nibabel as nib
@@ -14,31 +15,13 @@ from .augment import permute_data, generate_permutation_keys, reverse_permute_da
 
 
 def get_set_of_patch_indices_full(start, stop, step):
-    indices = get_set_of_patch_indices(start, stop + 1, step)
-    if stop[0] % step[0] > 0:
-        index = stop[0] - step[0]
-        more_indices = np.asarray(np.mgrid
-                                  [index: index + 1:1,
-                                   start[1]:stop[1] + 1:step[1],
-                                   start[2]:stop[2] + 1:step[2]]
-                                  .reshape(3, -1).T, dtype=np.int)
-        indices = np.concatenate([indices, more_indices])
-    if stop[1] % step[1] > 0:
-        index = stop[1] - step[1]
-        more_indices = np.asarray(np.mgrid[start[0]:stop[0] + 1:step[0],
-                                  index:index + 1:1,
-                                  start[2]:stop[2] + 1:step[2]]
-                                  .reshape(3, -1).T, dtype=np.int)
-        indices = np.concatenate([indices, more_indices])
-    if stop[2] % step[2] > 0:
-        index = stop[2] - step[2]
-        more_indices = np.asarray(np.mgrid[
-                                  start[0]:stop[0] + 1:step[0],
-                                  start[1]:stop[1] + 1:step[1],
-                                  index:index + 1:step[2]]
-                                  .reshape(3, -1).T, dtype=np.int)
-        indices = np.concatenate([indices, more_indices])
-    return indices
+    indices = []
+    for start_i, stop_i, step_i in zip(start, stop, step):
+        indices_i = list(range(start_i, stop_i+1, step_i))
+        if stop_i % step_i > 0:
+            indices_i += [stop_i]
+        indices += [indices_i]
+    return np.array(list(itertools.product(*indices)))
 
 
 def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=False):
@@ -56,7 +39,7 @@ def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=F
     prediction_shape = model.output_shape[-3:-1]  # patch_shape[-3:-1] #[64,64]#
     min_overlap = np.subtract(patch_shape, prediction_shape + (1,))
     max_overlap = np.subtract(patch_shape, (1, 1, 1))
-    overlap = min_overlap + np.floor(overlap_factor * (max_overlap - min_overlap))
+    overlap = min_overlap + (overlap_factor * (max_overlap - min_overlap)).astype(np.int)
     data_0 = np.pad(data[0],
                     [(_, _) for _ in np.subtract(patch_shape, prediction_shape + (1,)) // 2],
                     mode='constant', constant_values=np.min(data[0]))
