@@ -151,4 +151,5 @@ def reconstruct_from_patches(patches, patch_indices, data_shape, default_value=0
         data_i, count_i = results[i].get()
         data += data_i
         count += count_i
+    assert np.all(count > 0)
     return data / count
