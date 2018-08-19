@@ -5,7 +5,6 @@ from keras.engine import Layer
 from keras.layers import BatchNormalization, Conv2D, AveragePooling2D, InputLayer, Softmax
 from keras.optimizers import Adam
 from keras.losses import binary_crossentropy
-from keras.utils import to_categorical
 
 from ..metrics import dice_coefficient_loss
 
@@ -40,11 +39,12 @@ def fetal_envelope_model(input_shape=(5, 128, 128),
             output = BatchNormalization()(output)
         return output
 
-    def fc_block(input_layer: Layer, output_channels, batch_norm=batch_norm):
+    def fc_block(input_layer: Layer, output_channels, batch_norm=batch_norm,
+                 activation='tanh'):
         output = Conv2D_(output_channels,
                          kernel_size=kernel_size,  # input_layer.output_shape[:-1],
                          padding='same',
-                         activation='tanh')(input_layer)
+                         activation=activation)(input_layer)
         if batch_norm:
             output = BatchNormalization()(output)
         return output
@@ -71,13 +71,14 @@ def fetal_envelope_model(input_shape=(5, 128, 128),
         output_layer = Softmax(name='softmax_last_layer')(fc_block_2)
         loss = binary_crossentropy
     else:
-        fc_block_2 = fc_block(fc_block_1, 1, batch_norm=False)
+        fc_block_2 = fc_block(fc_block_1, 1, batch_norm=False, activation='sigmoid')
         output_layer = fc_block_2
         loss = dice_coefficient_loss
 
     model = Model(inputs=input_layer, output=output_layer)
     model.compile(optimizer=optimizer(lr=initial_learning_rate),
-                  loss=loss)  # 'binary_crossentropy')#loss_function)
+                  loss=loss,
+                  metrics=['mae', 'acc'])  # 'binary_crossentropy')#loss_function)
     return model
 
 # Sequential Model
