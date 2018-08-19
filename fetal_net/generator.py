@@ -1,7 +1,5 @@
-import copy
 import os
-from random import shuffle
-
+import random
 import numpy as np
 from keras.utils import to_categorical
 
@@ -149,27 +147,30 @@ def split_list(input_list, split=0.8, shuffle_list=True):
     return training, testing
 
 
+def random_list_generator(index_list):
+    while True:
+        yield from random.sample(index_list, len(index_list))
+
+
+def list_generator(index_list):
+    while True:
+        yield from index_list
+
+
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
                    shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True,
                    categorical=True):
-    orig_index_list = index_list
+    index_generator = random_list_generator(index_list) if shuffle_index_list else list_generator(index_list)
     while True:
         x_list = list()
         y_list = list()
 
-        index_list = copy.copy(orig_index_list)
-        if shuffle_index_list:
-            shuffle(index_list)
-
-        while len(index_list) > 0:
-            index = index_list.pop()
+        while len(x_list) < batch_size:
+            index = next(index_generator)
             add_data(x_list, y_list, data_file, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
                      truth_index=truth_index, truth_downsample=truth_downsample)
-            if len(x_list) == batch_size or (len(index_list) == 0 and len(x_list) > 0):
-                yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
-                x_list = list()
-                y_list = list()
+        yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
 
 
 def add_data(x_list, y_list, data_file, index, truth_index,
