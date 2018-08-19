@@ -38,6 +38,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            categorical=True):
     """
     Creates the training and validation generators that can be used when training the model.
+    :param categorical:
     :param truth_downsample:
     :param skip_blank: If True, any blank (all-zero) label images/patches will be skipped by the data generator.
     :param validation_batch_size: Batch size for the validation data.
@@ -149,7 +150,8 @@ def split_list(input_list, split=0.8, shuffle_list=True):
 
 
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
-                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True):
+                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True,
+                   categorical=True):
     orig_index_list = index_list
     while True:
         x_list = list()
@@ -165,7 +167,7 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
                      patch_shape=patch_shape, skip_blank=skip_blank,
                      truth_index=truth_index, truth_downsample=truth_downsample)
             if len(x_list) == batch_size or (len(index_list) == 0 and len(x_list) > 0):
-                yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels)
+                yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
                 x_list = list()
                 y_list = list()
 
