@@ -170,7 +170,8 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     else:
         prediction = patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor, permute=permute)[
             np.newaxis]
-    prediction = np.argmax(prediction, axis=-1)
+    if prediction.shape[-1] > 1:
+        prediction = np.argmax(prediction, axis=-1)
     prediction = prediction.squeeze()
     prediction_image = get_image(prediction)
     if isinstance(prediction_image, list):
