@@ -32,7 +32,7 @@ def pad_samples(data_file, patch_shape, truth_downsample):
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
-                                           validation_batch_size=None, skip_blank=True, truth_index=-1,
+                                           validation_batch_size=None, skip_blank_train=True, skip_blank_val=False, truth_index=-1,
                                            truth_downsample=None, truth_crop=True, patches_per_img_per_batch=1,
                                            categorical=True):
     """
@@ -85,14 +85,14 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                         labels=labels,
                                         augment=augment,
                                         patch_shape=patch_shape,
-                                        skip_blank=skip_blank,
+                                        skip_blank=skip_blank_train,
                                         truth_index=truth_index,
                                         truth_downsample=truth_downsample,
                                         truth_crop=truth_crop,
                                         categorical=categorical)
     validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
                                           n_labels=n_labels, labels=labels, patch_shape=patch_shape,
-                                          skip_blank=skip_blank, truth_index=truth_index,
+                                          skip_blank=skip_blank_val, truth_index=truth_index,
                                           truth_downsample=truth_downsample,
                                           truth_crop=truth_crop,
                                           categorical=categorical)
@@ -202,16 +202,8 @@ def add_data(x_list, y_list, data_file, index, truth_index,
                                    data_min=data_file.root.data_min[index],
                                    flip=augment['flip'],
                                    scale_deviation=augment['scale'],
-                                   translate_deviation=augment['translate'],
                                    rotate_deviation=augment['rotate'],
                                    data_range=data_range, truth_range=truth_range)
-
-        if augment["permute"] is not None and augment["permute"]:
-            if data.shape[-3] != data.shape[-2] or data.shape[-2] != data.shape[-1]:
-                raise ValueError(
-                    "To utilize permutations, data array must be in 3D cube shape with all dimensions having "
-                    "the same length.")
-            data, truth = random_permutation_x_y(data, truth)
     else:
         data, truth = extract_random_patch(data, patch_shape, truth, truth_crop)
 

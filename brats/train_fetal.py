@@ -32,20 +32,21 @@ config["early_stop"] = 50  # training will be stopped after this many epochs wit
 config["initial_learning_rate"] = 5e-4
 config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
 config["validation_split"] = 0.90  # portion of the data that will be used for training
-config["categorical"] = True  # will make the target one_hot
-config["loss"] = 'binary_cross_entropy' # or 'dice_coeeficient'
+
+config["categorical"] = False  # will make the target one_hot
+config["loss"] = 'dice'  # 'binary_cross_entropy' # or 'dice_coeeficient'
 
 config["augment"] = {
-    "flip": False,  # augments the data by randomly flipping an axis during
+    "flip": None, #[0.5, 0.5, 0.5],  # augments the data by randomly flipping an axis during
     "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
     "scale": 0.10,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
-    "translate": 0.10,  # i.e 0.10 for 10%, std of translation factor, switch to None if you want no translation
     "rotate": (0, 0, 7)  # std of angle rotation, switch to None if you want no rotation
 }
 config["augment"] = config["augment"] if any(config["augment"].values()) else None
 config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
 config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
-config["skip_blank"] = True  # if True, then patches without any target will be skipped
+config["skip_blank_train"] = False  # if True, then patches without any target will be skipped
+config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
 
 config["base_dir"] = './debug'
 Path(config["base_dir"]).mkdir(parents=True, exist_ok=True)
@@ -105,7 +106,8 @@ def main(overwrite=False):
         patch_shape=(*config["patch_shape"], config["patch_depth"]),
         validation_batch_size=config["validation_batch_size"],
         augment=config["augment"],
-        skip_blank=config["skip_blank"],
+        skip_blank_train=config["skip_blank_train"],
+        skip_blank_val=config["skip_blank_val"],
         truth_index=config["truth_index"],
         truth_downsample=config["truth_downsample"],
         truth_crop=config["crop"],
