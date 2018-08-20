@@ -94,17 +94,17 @@ def resize(image, new_shape, interpolation="linear"):
     return new_img_like(image, new_data, affine=new_affine)
 
 
-def interpolate_affine_coords(img, coords, mode='constant', order=0, cval=0):
+def interpolate_affine_coords(data, affine, coords, mode='constant', order=0, cval=0):
     in_vox_coords = np.array(np.meshgrid(*coords, indexing='ij'))
     coords_last = in_vox_coords.transpose(1, 2, 3, 0)
-    mean_vox_coords = nib.affines.apply_affine(img.affine, coords_last)
+    mean_vox_coords = nib.affines.apply_affine(affine, coords_last)
     coords_first_again = mean_vox_coords.transpose(3, 0, 1, 2)
-    resampled_mean_again = map_coordinates(img.get_fdata(),
+    resampled_mean_again = map_coordinates(data,
                                            coords_first_again,
                                            mode=mode, order=order, cval=cval)
     return resampled_mean_again
 
 
-def interpolate_affine_range(img, ranges, mode='constant', order=0, cval=0):
-    return interpolate_affine_coords(img, coords=[range(s, e) for s, e in ranges],
+def interpolate_affine_range(data, affine, ranges, mode='constant', order=0, cval=0):
+    return interpolate_affine_coords(data, affine, coords=[range(s, e) for s, e in ranges],
                                      mode=mode, order=order, cval=cval)

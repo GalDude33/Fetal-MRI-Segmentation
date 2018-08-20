@@ -7,77 +7,78 @@ import itertools
 from fetal_net.utils.utils import get_image, interpolate_affine_range
 
 
-def scale_image(image, scale_factor):
-    scale_factor = np.asarray(scale_factor)
-    new_affine = np.copy(image.affine)
-    new_affine[:3, :3] = image.affine[:3, :3] * scale_factor
-    new_affine[:, 3][:3] = image.affine[:, 3][:3] + (image.shape * np.diag(image.affine)[:3] * (1 - scale_factor)) / 2
-    return new_img_like(image, data=image.get_data(), affine=new_affine)
+def scale_image(affine, scale_factor):
+    scale_factor = np.diag(list(scale_factor)+[1])
+    new_affine = scale_factor.dot(affine)
+    return new_affine
 
 
-def translate_image(image, translate_factor):
+def translate_image(affine, translate_factor):
     translate_factor = np.asarray(translate_factor)
-    new_affine = np.copy(image.affine)
-    image.affine[0:3, 3] = image.affine[0:3, 3] + translate_factor
-    return new_img_like(image, data=image.get_data(), affine=new_affine)
+    new_affine = np.copy(affine)
+    new_affine[0:3, 3] = new_affine[0:3, 3] + translate_factor
+    return new_affine
 
 
-def rotate_image_x(image, rotate_factor):
+def rotate_image_axis(affine, rotate_factor, axis):
+    return {
+        0: rotate_image_x,
+        1: rotate_image_y,
+        2: rotate_image_z
+    }[axis](affine, rotate_factor)
+
+
+def rotate_image_x(affine, rotate_factor):
     sin_gamma = np.sin(rotate_factor)
     cos_gamma = np.cos(rotate_factor)
     rotation_affine = np.array([[1, 0, 0, 0],
                                 [0, cos_gamma, -sin_gamma, 0],
                                 [0, sin_gamma, cos_gamma, 0],
                                 [0, 0, 0, 1]])
-    new_affine = rotation_affine.dot(np.copy(image.affine))
-    return new_img_like(image, data=image.get_data(), affine=new_affine)
+    new_affine = rotation_affine.dot(affine)
+    return new_affine
 
 
-def rotate_image_y(image, rotate_factor):
+def rotate_image_y(affine, rotate_factor):
     sin_gamma = np.sin(rotate_factor)
     cos_gamma = np.cos(rotate_factor)
     rotation_affine = np.array([[cos_gamma, 0, sin_gamma, 0],
                                 [0, 1, 0, 0],
                                 [-sin_gamma, 0, cos_gamma, 0],
                                 [0, 0, 0, 1]])
-    new_affine = rotation_affine.dot(np.copy(image.affine))
-    return new_img_like(image, data=image.get_data(), affine=new_affine)
+    new_affine = rotation_affine.dot(affine)
+    return new_affine
 
 
-def rotate_image_z(image, rotate_factor):
+def rotate_image_z(affine, rotate_factor):
     sin_gamma = np.sin(rotate_factor)
     cos_gamma = np.cos(rotate_factor)
     rotation_affine = np.array([[1, 0, 0, 0],
                                 [0, cos_gamma, -sin_gamma, 0],
                                 [0, sin_gamma, cos_gamma, 0],
                                 [0, 0, 0, 1]])
-    new_affine = rotation_affine.dot(np.copy(image.affine))
-    return new_img_like(image, data=image.get_data(), affine=new_affine)
+    new_affine = rotation_affine.dot(affine)
+    return new_affine
 
 
-def rotate_image(image, rotate_angle):
-    new_image = rotate_image_x(image, rotate_angle[0])
-    new_image = rotate_image_y(new_image, rotate_angle[1])
-    new_image = rotate_image_z(new_image, rotate_angle[2])
-    return new_image
+def rotate_image(affine, rotate_angles):
+    new_affine = np.copy(affine)
+
+    # apply rotations
+    for i, rotate_angle in enumerate(rotate_angles):
+        if rotate_angle > 0:
+            new_affine = rotate_image_axis(new_affine, rotate_angle, axis=i)
+
+    return new_affine
 
 
-def flip_image(image, axis):
-    try:
-        new_data = np.copy(image.get_data())
-        for axis_index in axis:
-            new_data = np.flip(new_data, axis=axis_index)
-    except TypeError:
-        new_data = np.flip(image.get_data(), axis=axis)
-    return new_img_like(image, data=new_data)
+def flip_image(affine, axis):
+    new_affine = np.copy(affine)
 
+    for ax in axis:
+        new_affine = rotate_image_axis(new_affine, np.deg2rad(180), axis=ax)
 
-def random_flip_dimensions(n_dimensions):
-    axis = list()
-    for dim in range(n_dimensions):
-        if random_boolean():
-            axis.append(dim)
-    return axis
+    return new_affine
 
 
 def random_scale_factor(n_dim=3, mean=1, std=0.25):
@@ -96,61 +97,73 @@ def random_boolean():
     return np.random.choice([True, False])
 
 
-def distort_image(image, flip_axis=None, scale_factor=None, translate_factor=None,
-                  rotate_factor=None):
+def distort_image(data, affine, flip_axis=None, scale_factor=None, rotate_factor=None):
+    # translate center of image to 0,0,0
+    center_offset = np.array(data.shape)/2
+    affine = translate_image(affine, -center_offset)
+
     if flip_axis is not None:
-        image = flip_image(image, flip_axis)
+        affine = flip_image(affine, flip_axis)
     if scale_factor is not None:
-        image = scale_image(image, scale_factor)
-    if translate_factor is not None:
-        image = translate_image(image, translate_factor)
+        affine = scale_image(affine, scale_factor)
     if rotate_factor is not None:
-        image = rotate_image(image, rotate_factor)
-    return image
+        affine = rotate_image(affine, rotate_factor)
+
+    # translate image back to original coordinates
+    affine = translate_image(affine, +center_offset)
+
+    return data, affine
 
 
-def augment_data(data, truth, scale_deviation=None, translate_deviation=None, rotate_deviation=None, flip=True,
-                 data_range=None, truth_range=None):
+def random_flip_dimensions(n_dim, flip_factor):
+    return np.arange(n_dim)[
+        [flip_rate > random.random()
+         for flip_rate in flip_factor]
+    ]
+
+
+def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=None,
+                 flip=True, data_range=None, truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
     else:
         scale_factor = None
-    if translate_deviation:
-        translate_factor = random_translate_factor(n_dim, std=translate_deviation)
-        translate_factor = translate_factor * truth.shape
-    else:
-        translate_factor = None
     if rotate_deviation:
         rotate_factor = random_rotation_angle(n_dim, std=rotate_deviation)
         rotate_factor = np.deg2rad(rotate_factor)
     else:
         rotate_factor = None
     if flip is not None and flip:
-        flip_axis = random_flip_dimensions(n_dim)
+        flip_axis = random_flip_dimensions(n_dim, flip)
     else:
         flip_axis = None
 
-    image = get_image(data)
-    distorted_image = distort_image(image, flip_axis=flip_axis,
-                                    scale_factor=scale_factor,
-                                    translate_factor=translate_factor,
-                                    rotate_factor=rotate_factor)
+    image, affine = data, np.eye(4)
+    distorted_data, distorted_affine = distort_image(image, affine,
+                                                     flip_axis=flip_axis,
+                                                     scale_factor=scale_factor,
+                                                     rotate_factor=rotate_factor)
     if data_range is None:
-        data = resample_to_img(distorted_image, image, interpolation="continuous", copy=False, clip=True).get_fdata()
+        data = resample_to_img(get_image(distorted_data, distorted_affine), image, interpolation="continuous",
+                               copy=False, clip=True).get_fdata()
     else:
-        data = interpolate_affine_range(distorted_image, data_range, order=1, mode='constant', cval=np.min(data))
 
-    truth_image = get_image(truth)
-    distorted_truth_image = distort_image(truth_image, flip_axis=flip_axis,
-                                          scale_factor=scale_factor,
-                                          translate_factor=translate_factor,
-                                          rotate_factor=rotate_factor)
+        data = interpolate_affine_range(distorted_data, distorted_affine, data_range, order=1, mode='constant',
+                                        cval=data_min)
+
+    truth_image, truth_affine = truth, np.eye(4)
+    distorted_truth_data, distorted_truth_affine = distort_image(truth_image, truth_affine,
+                                                                 flip_axis=flip_axis,
+                                                                 scale_factor=scale_factor,
+                                                                 rotate_factor=rotate_factor)
     if truth_range is None:
-        truth_data = resample_to_img(distorted_truth_image, truth_image, interpolation="nearest", copy=False,
+        truth_data = resample_to_img(get_image(distorted_truth_data, distorted_truth_affine), truth_image,
+                                     interpolation="nearest", copy=False,
                                      clip=True).get_data()
     else:
-        truth_data = interpolate_affine_range(distorted_truth_image, truth_range, order=0, mode='constant', cval=0)
+        truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine, truth_range, order=0,
+                                              mode='constant', cval=0)
     return data, truth_data
 
 

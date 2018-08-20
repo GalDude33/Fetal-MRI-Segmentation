@@ -1,3 +1,4 @@
+import itertools
 import os
 
 import nibabel as nib
@@ -8,41 +9,58 @@ from tqdm import tqdm
 from fetal_net.utils.utils import get_image, resize
 from .training import load_old_model
 from .utils import pickle_load
-from .utils.patches import reconstruct_from_patches, get_patch_from_3d_data, compute_patch_indices
+from .utils.patches import reconstruct_from_patches, get_patch_from_3d_data, compute_patch_indices, \
+    get_set_of_patch_indices
 from .augment import permute_data, generate_permutation_keys, reverse_permute_data
 
 
-def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
+def get_set_of_patch_indices_full(start, stop, step):
+    indices = []
+    for start_i, stop_i, step_i in zip(start, stop, step):
+        indices_i = list(range(start_i, stop_i+1, step_i))
+        if stop_i % step_i > 0:
+            indices_i += [stop_i]
+        indices += [indices_i]
+    return np.array(list(itertools.product(*indices)))
+
+
+def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=False):
     """
+    :param permute:
+    :param overlap_factor:
     :param batch_size:
     :param model:
     :param data:
-    :param overlap:
     :return:
     """
     patch_shape = tuple([int(dim) for dim in model.input.shape[-3:]])
     predictions = list()
 
-    model_prediction_shape = model.output_shape[-3:-1] #patch_shape[-3:-1] #[64,64]#
+    prediction_shape = model.output_shape[-3:-1]  # patch_shape[-3:-1] #[64,64]#
+    min_overlap = np.subtract(patch_shape, prediction_shape + (1,))
+    max_overlap = np.subtract(patch_shape, (1, 1, 1))
+    overlap = min_overlap + (overlap_factor * (max_overlap - min_overlap)).astype(np.int)
+    data_0 = np.pad(data[0],
+                    [(_, _) for _ in np.subtract(patch_shape, prediction_shape + (1,)) // 2],
+                    mode='constant', constant_values=np.min(data[0]))
 
-    overlap = np.subtract(model_prediction_shape + (1,), (overlap, overlap, 0))
-    indices = compute_patch_indices(data.shape[-3:], patch_size=patch_shape,
-                                    overlap=np.subtract(patch_shape, overlap))
+    indices = get_set_of_patch_indices_full((0, 0, 0),
+                                            np.subtract(data_0.shape, patch_shape),
+                                            np.subtract(patch_shape, overlap))
     batch = list()
     i = 0
-
     with tqdm(total=len(indices)) as pbar:
         while i < len(indices):
-            while len(batch) < batch_size:
-                patch = get_patch_from_3d_data(data[0], patch_shape=patch_shape, patch_index=indices[i])
+            while len(batch) < batch_size and i < len(indices):
+                patch = get_patch_from_3d_data(data_0, patch_shape=patch_shape, patch_index=indices[i])
                 batch.append(patch)
                 i += 1
             prediction = predict(model, np.asarray(batch), permute=permute)
             prediction = np.expand_dims(prediction, -2)
 
-            if prediction.shape[-4:-2] < model_prediction_shape:
+            if prediction.shape[-4:-2] < prediction_shape:
                 prediction = resize(get_image(prediction.squeeze()),
-                                    new_shape=model_prediction_shape+(2,),
+                                    new_shape=prediction_shape + (2,),
                                     interpolation='nearest').get_data()
                 prediction = np.expand_dims(np.expand_dims(prediction, axis=0), axis=-2)
 
@@ -51,8 +69,8 @@ def patch_wise_prediction(model, data, overlap=0, batch_size=1, permute=False):
                 predictions.append(predicted_patch)
             pbar.update(batch_size)
 
-    ind_offset = np.subtract(patch_shape[-3:], model_prediction_shape + (1,)) // 2
-    indices = [np.add(ind, ind_offset) for ind in indices]
+    # ind_offset = np.subtract(patch_shape[-3:], prediction_shape + (1,)) // 2
+    # indices = [np.add(ind, ind_offset) for ind in indices]
     data_shape = list(data.shape[-3:]) + [model.output_shape[-1]]
     return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
 
@@ -121,7 +139,7 @@ def multi_class_prediction(prediction, affine):
 
 
 def run_validation_case(data_index, output_dir, model, data_file, training_modalities,
-                        output_label_map=False, threshold=0.5, labels=None, overlap=0, permute=False):
+                        output_label_map=False, threshold=0.5, labels=None, overlap_factor=0, permute=False):
     """
     Runs a test case and writes predicted images to file.
     :param data_index: Index from of the list of test cases to get an image prediction from.
@@ -150,7 +168,8 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     if patch_shape == test_data.shape[-3:]:
         prediction = predict(model, test_data, permute=permute)
     else:
-        prediction = patch_wise_prediction(model=model, data=test_data, overlap=overlap, permute=permute)[np.newaxis]
+        prediction = patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor, permute=permute)[
+            np.newaxis]
     prediction = np.argmax(prediction, axis=-1)
     prediction = prediction.squeeze()
     prediction_image = get_image(prediction)
@@ -162,7 +181,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
 
 
 def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file,
-                         output_label_map=False, output_dir=".", threshold=0.5, overlap=0, permute=False):
+                         output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0, permute=False):
     validation_indices = pickle_load(validation_keys_file)
     model = load_old_model(model_file)
     data_file = tables.open_file(hdf5_file, "r")
@@ -173,7 +192,7 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
             case_directory = os.path.join(output_dir, "validation_case_{}".format(index))
         run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
                             training_modalities=training_modalities, output_label_map=output_label_map, labels=labels,
-                            threshold=threshold, overlap=overlap, permute=permute)
+                            threshold=threshold, overlap_factor=overlap_factor, permute=permute)
     data_file.close()
 
 
