@@ -17,7 +17,7 @@ from .augment import permute_data, generate_permutation_keys, reverse_permute_da
 def get_set_of_patch_indices_full(start, stop, step):
     indices = []
     for start_i, stop_i, step_i in zip(start, stop, step):
-        indices_i = list(range(start_i, stop_i+1, step_i))
+        indices_i = list(range(start_i, stop_i + 1, step_i))
         if stop_i % step_i > 0:
             indices_i += [stop_i]
         indices += [indices_i]
@@ -171,7 +171,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         prediction = patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor, permute=permute)[
             np.newaxis]
     if prediction.shape[-1] > 1:
-        prediction = np.argmax(prediction, axis=-1)
+        prediction = prediction[..., 1]
     prediction = prediction.squeeze()
     prediction_image = get_image(prediction)
     if isinstance(prediction_image, list):
