@@ -41,12 +41,17 @@ def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=F
     max_overlap = np.subtract(patch_shape, (1, 1, 1))
     overlap = min_overlap + (overlap_factor * (max_overlap - min_overlap)).astype(np.int)
     data_0 = np.pad(data[0],
-                    [(_, _) for _ in np.subtract(patch_shape, prediction_shape + (1,)) // 2],
+                    [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
+                     np.subtract(patch_shape, prediction_shape + (1,))],
                     mode='constant', constant_values=np.min(data[0]))
 
     indices = get_set_of_patch_indices_full((0, 0, 0),
                                             np.subtract(data_0.shape, patch_shape),
                                             np.subtract(patch_shape, overlap))
+
+    assert len(indices)*np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
+        'no total coverage for prediction, something wrong with the indexing'
+
     batch = list()
     i = 0
     with tqdm(total=len(indices)) as pbar:
