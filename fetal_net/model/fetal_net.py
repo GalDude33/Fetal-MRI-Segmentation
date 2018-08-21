@@ -1,16 +1,16 @@
 from functools import partial
 
 from keras import Model, Input
-from keras.engine import Layer
-from keras.layers import BatchNormalization, Conv2D, AveragePooling2D, InputLayer, Softmax
-from keras.optimizers import Adam
+from keras.layers import BatchNormalization, Conv2D, Softmax, MaxPooling2D
 from keras.losses import binary_crossentropy
+from keras.optimizers import RMSprop
+from tensorflow import Tensor
 
 from ..metrics import dice_coefficient_loss
 
 
 def fetal_envelope_model(input_shape=(5, 128, 128),
-                         optimizer=Adam,
+                         optimizer=RMSprop,
                          initial_learning_rate=5e-4,
                          loss_function='binary_cross_entropy'):
     """
@@ -34,16 +34,16 @@ def fetal_envelope_model(input_shape=(5, 128, 128),
 
     def conv_block(input_layer, batch_norm=batch_norm):
         output = Conv2D_(16, activation='relu')(input_layer)
-        output = AveragePooling2D(data_format='channels_last', padding='same')(output)
+        output = MaxPooling2D(data_format='channels_last', padding='same')(output)
         if batch_norm:
             output = BatchNormalization()(output)
         return output
 
-    def fc_block(input_layer: Layer, output_channels, batch_norm=batch_norm,
+    def fc_block(input_layer: Tensor, output_channels, batch_norm=batch_norm,
                  activation='tanh'):
         output = Conv2D_(output_channels,
-                         kernel_size=kernel_size,  # input_layer.output_shape[:-1],
-                         padding='same',
+                         kernel_size=input_layer.shape[1:3].as_list(),  # input_layer.output_shape[:-1],
+                         padding='valid',
                          activation=activation)(input_layer)
         if batch_norm:
             output = BatchNormalization()(output)
@@ -78,7 +78,7 @@ def fetal_envelope_model(input_shape=(5, 128, 128),
     model = Model(inputs=input_layer, output=output_layer)
     model.compile(optimizer=optimizer(lr=initial_learning_rate),
                   loss=loss,
-                  metrics=['mae', 'acc'])  # 'binary_crossentropy')#loss_function)
+                  metrics=['acc'])  # 'binary_crossentropy')#loss_function)
     return model
 
 # Sequential Model

@@ -12,7 +12,7 @@ from .utils.patches import get_patch_from_3d_data
 class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
-        self.data_min = [np.min(_) for _ in self.data]
+        self.data_min = [np.percentile(_, q=1) for _ in self.data]
         self.truth = [_ for _ in file.root.truth]
         self.root = self
 
@@ -203,6 +203,7 @@ def add_data(x_list, y_list, data_file, index, truth_index,
                                    flip=augment['flip'],
                                    scale_deviation=augment['scale'],
                                    rotate_deviation=augment['rotate'],
+                                   translate_deviation=augment['translate'],
                                    data_range=data_range, truth_range=truth_range)
     else:
         data, truth = extract_random_patch(data, patch_shape, truth, truth_crop)
