@@ -8,7 +8,7 @@ from fetal_net.utils.utils import get_image, interpolate_affine_range
 
 
 def scale_image(affine, scale_factor):
-    scale_factor = np.diag(list(scale_factor)+[1])
+    scale_factor = np.diag(list(scale_factor) + [1])
     new_affine = scale_factor.dot(affine)
     return new_affine
 
@@ -85,21 +85,21 @@ def random_scale_factor(n_dim=3, mean=1, std=0.25):
     return np.random.normal(mean, std, n_dim)
 
 
-def random_translate_factor(n_dim=3, mean=0, std=0.10):
-    return np.random.normal(mean, std, n_dim)
+def random_translate_factor(n_dim=3, min=0, max=7):
+    return np.random.uniform(min, max, n_dim)
 
 
 def random_rotation_angle(n_dim=3, mean=0, std=5):
-    return np.random.normal(mean, std, n_dim)
+    return np.random.uniform(low=mean-np.array(std), high=mean+np.array(std), size=n_dim)
 
 
 def random_boolean():
     return np.random.choice([True, False])
 
 
-def distort_image(data, affine, flip_axis=None, scale_factor=None, rotate_factor=None):
+def distort_image(data, affine, flip_axis=None, scale_factor=None, rotate_factor=None, translate_factor=None):
     # translate center of image to 0,0,0
-    center_offset = np.array(data.shape)/2
+    center_offset = np.array(data.shape) / 2
     affine = translate_image(affine, -center_offset)
 
     if flip_axis is not None:
@@ -112,6 +112,9 @@ def distort_image(data, affine, flip_axis=None, scale_factor=None, rotate_factor
     # translate image back to original coordinates
     affine = translate_image(affine, +center_offset)
 
+    if translate_factor is not None:
+        affine = translate_image(affine, translate_factor)
+
     return data, affine
 
 
@@ -122,7 +125,7 @@ def random_flip_dimensions(n_dim, flip_factor):
     ]
 
 
-def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=None,
+def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=None, translate_deviation=None,
                  flip=True, data_range=None, truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
@@ -138,12 +141,17 @@ def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=N
         flip_axis = random_flip_dimensions(n_dim, flip)
     else:
         flip_axis = None
+    if translate_deviation is not None:
+        translate_factor = random_translate_factor(n_dim, -np.array(translate_deviation), np.array(translate_deviation))
+    else:
+        translate_factor = None
 
     image, affine = data, np.eye(4)
     distorted_data, distorted_affine = distort_image(image, affine,
                                                      flip_axis=flip_axis,
                                                      scale_factor=scale_factor,
-                                                     rotate_factor=rotate_factor)
+                                                     rotate_factor=rotate_factor,
+                                                     translate_factor=translate_factor)
     if data_range is None:
         data = resample_to_img(get_image(distorted_data, distorted_affine), image, interpolation="continuous",
                                copy=False, clip=True).get_fdata()
@@ -156,7 +164,8 @@ def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=N
     distorted_truth_data, distorted_truth_affine = distort_image(truth_image, truth_affine,
                                                                  flip_axis=flip_axis,
                                                                  scale_factor=scale_factor,
-                                                                 rotate_factor=rotate_factor)
+                                                                 rotate_factor=rotate_factor,
+                                                                 translate_factor=translate_factor)
     if truth_range is None:
         truth_data = resample_to_img(get_image(distorted_truth_data, distorted_truth_affine), truth_image,
                                      interpolation="nearest", copy=False,

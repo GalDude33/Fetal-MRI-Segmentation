@@ -17,7 +17,7 @@ from .augment import permute_data, generate_permutation_keys, reverse_permute_da
 def get_set_of_patch_indices_full(start, stop, step):
     indices = []
     for start_i, stop_i, step_i in zip(start, stop, step):
-        indices_i = list(range(start_i, stop_i+1, step_i))
+        indices_i = list(range(start_i, stop_i + 1, step_i))
         if stop_i % step_i > 0:
             indices_i += [stop_i]
         indices += [indices_i]
@@ -41,12 +41,17 @@ def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=F
     max_overlap = np.subtract(patch_shape, (1, 1, 1))
     overlap = min_overlap + (overlap_factor * (max_overlap - min_overlap)).astype(np.int)
     data_0 = np.pad(data[0],
-                    [(_, _) for _ in np.subtract(patch_shape, prediction_shape + (1,)) // 2],
+                    [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
+                     np.subtract(patch_shape, prediction_shape + (1,))],
                     mode='constant', constant_values=np.min(data[0]))
 
     indices = get_set_of_patch_indices_full((0, 0, 0),
                                             np.subtract(data_0.shape, patch_shape),
                                             np.subtract(patch_shape, overlap))
+
+    assert len(indices)*np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
+        'no total coverage for prediction, something wrong with the indexing'
+
     batch = list()
     i = 0
     with tqdm(total=len(indices)) as pbar:
@@ -171,7 +176,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         prediction = patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor, permute=permute)[
             np.newaxis]
     if prediction.shape[-1] > 1:
-        prediction = np.argmax(prediction, axis=-1)
+        prediction = prediction[..., 1]
     prediction = prediction.squeeze()
     prediction_image = get_image(prediction)
     if isinstance(prediction_image, list):
