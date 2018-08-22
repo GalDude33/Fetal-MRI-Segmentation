@@ -6,10 +6,11 @@
 pip install -r requirements.txt
 
 * To run training:
-Config currently in dict inside brats/train_fetal.py (See [Issue #3](https://github.com/GalDude33/Fetal_Envelope_MRI/issues/3))
+Config currently in dict inside brats/train_fetal.py
 ```
-$ python -m brats.train_fetal
+$ python -m brats.train_fetal --config_dir <config_dir>
 ```
+Where <config_dir> is the folder containing the training configurations (or will be creatad to)
 
 ### Write prediction images from the validation data
 In the training above, part of the data was held out for validation purposes. 
