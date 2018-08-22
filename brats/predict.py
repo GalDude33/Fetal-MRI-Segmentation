@@ -6,7 +6,7 @@ import argparse
 
 
 def main(config, overlap_factor=1):
-    prediction_dir = os.path.abspath("prediction")
+    prediction_dir = os.path.abspath(config['base_dir'])
     run_validation_cases(validation_keys_file=config["validation_file"],
                          model_file=config["model_file"],
                          training_modalities=config["training_modalities"],
