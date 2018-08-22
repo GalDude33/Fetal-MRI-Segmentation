@@ -6,59 +6,79 @@ from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
 from fetal_net.training import load_old_model, train_model
 from pathlib import Path
+import json
+import argparse
 
-config = dict()
-# config["image_shape"] = (256, 256, 108)  # This determines what shape the images will be cropped/resampled to.
-config["patch_shape"] = (64, 64)  # switch to None to train on the whole image
-config["patch_depth"] = 5
-config["truth_index"] = 2
-config["truth_downsample"] = 64
-config["crop"] = True  # if true will crop sample
+parser = argparse.ArgumentParser()
 
-config["labels"] = (1,)  # the label numbers on the input image
-config["n_labels"] = len(config["labels"])
-config["all_modalities"] = ["volume"]
-config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
-config["nb_channels"] = len(config["training_modalities"])
-config["input_shape"] = tuple(list(config["patch_shape"]) + [config["patch_depth"]])
-config["truth_channel"] = config["nb_channels"]
+parser.add_argument("--overwrite_config", help="overwrite saved config",
+                    action="store_true")
+parser.add_argument("--config_dir", help="specifies config dir path",
+                    type=str, required=True)
+opts = parser.parse_args()
 
-config["batch_size"] = 16
-config["patches_per_img_per_batch"] = 100
-config["validation_batch_size"] = 16
-config["n_epochs"] = 300  # cutoff the training after this many epochs
-config["patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
-config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
-config["initial_learning_rate"] = 5e-4
-config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
-config["validation_split"] = 0.90  # portion of the data that will be used for training
+# Load previous config if exists
+if Path(os.path.join(opts.config_dir, 'config.json')).exists() and not opts.overwrite_config:
+    print('Loading previous config.json from {}'.format(opts.config_dir))
+    with open(os.path.join(opts.config_dir, 'config.json')) as f:
+        config = json.load(f)
+else:
+    config = dict()
+    config["base_dir"] = opts.config_dir
 
-config["categorical"] = True  # will make the target one_hot
-config["loss"] = 'binary_cross_entropy'  # or 'dice_coeeficient'
+    Path(config["base_dir"]).mkdir(parents=True, exist_ok=True)
 
-config["augment"] = {
-    "flip": [0.25, 0.25, 0.25],  # augments the data by randomly flipping an axis during
-    "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
-    "translate": (10, 10, 5),  #
-    "scale": 0.10,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
-    "rotate": (5, 5, 10)  # std of angle rotation, switch to None if you want no rotation
-}
-config["augment"] = config["augment"] if any(config["augment"].values()) else None
-config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
-config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
-config["skip_blank_train"] = False  # if True, then patches without any target will be skipped
-config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
+    # config["image_shape"] = (256, 256, 108)  # This determines what shape the images will be cropped/resampled to.
+    config["patch_shape"] = (65, 65)  # switch to None to train on the whole image
+    config["patch_depth"] = 5
+    config["truth_index"] = 2
+    config["truth_downsample"] = 64
+    config["crop"] = True  # if true will crop sample
 
-config["base_dir"] = './debug5_proc'
-Path(config["base_dir"]).mkdir(parents=True, exist_ok=True)
+    config["labels"] = (1,)  # the label numbers on the input image
+    config["n_labels"] = len(config["labels"])
+    config["all_modalities"] = ["volume"]
+    config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
+    config["nb_channels"] = len(config["training_modalities"])
+    config["input_shape"] = tuple(list(config["patch_shape"]) + [config["patch_depth"]])
+    config["truth_channel"] = config["nb_channels"]
 
-config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
-config["model_file"] = os.path.join(config["base_dir"], "isensee_2017_model.h5")
-config["training_file"] = os.path.join(config["base_dir"], "isensee_training_ids.pkl")
-config["validation_file"] = os.path.join(config["base_dir"], "isensee_validation_ids.pkl")
-config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
+    config["batch_size"] = 16
+    config["patches_per_img_per_batch"] = 100
+    config["validation_batch_size"] = 16
+    config["n_epochs"] = 300  # cutoff the training after this many epochs
+    config["patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
+    config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
+    config["initial_learning_rate"] = 5e-4
+    config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
+    config["validation_split"] = 0.90  # portion of the data that will be used for training
 
-config['scans_dir'] = "/home/galdude33/Lab/workspace/3DUnetCNN/data/cut_scans_2_proc"
+    config["categorical"] = True  # will make the target one_hot
+    config["loss"] = 'binary_cross_entropy'  # or 'dice_coeeficient'
+
+    config["augment"] = {
+        "flip": [0.25, 0.25, 0.25],  # augments the data by randomly flipping an axis during
+        "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
+        "translate": (10, 10, 5),  #
+        "scale": 0.10,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
+        "rotate": (5, 5, 10)  # std of angle rotation, switch to None if you want no rotation
+    }
+    config["augment"] = config["augment"] if any(config["augment"].values()) else None
+    config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
+    config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
+    config["skip_blank_train"] = False  # if True, then patches without any target will be skipped
+    config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
+
+    config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
+    config["model_file"] = os.path.join(config["base_dir"], "isensee_2017_model.h5")
+    config["training_file"] = os.path.join(config["base_dir"], "isensee_training_ids.pkl")
+    config["validation_file"] = os.path.join(config["base_dir"], "isensee_validation_ids.pkl")
+    config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
+
+    config['scans_dir'] = "/home/galdude33/Lab/workspace/3DUnetCNN/data/cut_scans_2_proc"
+
+    with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
+        json.dump(config, f, indent=2)
 
 
 def fetch_training_data_files(return_subject_ids=False):
