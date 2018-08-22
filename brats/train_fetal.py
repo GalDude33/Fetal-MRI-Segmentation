@@ -33,22 +33,26 @@ else:
     config["patch_shape"] = (65, 65)  # switch to None to train on the whole image
     config["patch_depth"] = 5
     config["truth_index"] = 2
+    config["prev_truth_index"] = 1  # None for regular training
     config["truth_downsample"] = 64
-    config["crop"] = True  # if true will crop sample
+    config["truth_crop"] = True  # if true will crop sample
 
     config["labels"] = (1,)  # the label numbers on the input image
     config["n_labels"] = len(config["labels"])
     config["all_modalities"] = ["volume"]
-    config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
+    config["training_modalities"] = config[
+        "all_modalities"]  # change this if you want to only use some of the modalities
     config["nb_channels"] = len(config["training_modalities"])
-    config["input_shape"] = tuple(list(config["patch_shape"]) + [config["patch_depth"]])
+    config["input_shape"] = tuple(list(config["patch_shape"]) +
+                                  [config["patch_depth"] + (1 if config["prev_truth_index"] is not None else 0)])
     config["truth_channel"] = config["nb_channels"]
 
     config["batch_size"] = 16
     config["patches_per_img_per_batch"] = 100
     config["validation_batch_size"] = 16
     config["n_epochs"] = 300  # cutoff the training after this many epochs
-    config["patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
+    config[
+        "patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
     config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
     config["initial_learning_rate"] = 5e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
@@ -131,8 +135,9 @@ def main(overwrite=False):
         skip_blank_train=config["skip_blank_train"],
         skip_blank_val=config["skip_blank_val"],
         truth_index=config["truth_index"],
+        prev_truth_index=config["prev_truth_index"],
         truth_downsample=config["truth_downsample"],
-        truth_crop=config["crop"],
+        truth_crop=config["truth_crop"],
         patches_per_img_per_batch=config["patches_per_img_per_batch"],
         categorical=config["categorical"])
 

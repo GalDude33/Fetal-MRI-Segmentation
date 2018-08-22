@@ -90,7 +90,7 @@ def random_translate_factor(n_dim=3, min=0, max=7):
 
 
 def random_rotation_angle(n_dim=3, mean=0, std=5):
-    return np.random.uniform(low=mean-np.array(std), high=mean+np.array(std), size=n_dim)
+    return np.random.uniform(low=mean - np.array(std), high=mean + np.array(std), size=n_dim)
 
 
 def random_boolean():
@@ -126,7 +126,7 @@ def random_flip_dimensions(n_dim, flip_factor):
 
 
 def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=None, translate_deviation=None,
-                 flip=True, data_range=None, truth_range=None):
+                 flip=True, data_range=None, truth_range=None, prev_truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
@@ -171,9 +171,16 @@ def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=N
                                      interpolation="nearest", copy=False,
                                      clip=True).get_data()
     else:
-        truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine, truth_range, order=0,
-                                              mode='constant', cval=0)
-    return data, truth_data
+        truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
+                                              truth_range, order=0, mode='constant', cval=0)
+
+    if prev_truth_range is None:
+        prev_truth_data = None
+    else:
+        prev_truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
+                                                   prev_truth_range, order=0, mode='constant', cval=0)
+
+    return data, truth_data, prev_truth_data
 
 
 def generate_permutation_keys():
