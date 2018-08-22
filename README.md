@@ -1,5 +1,4 @@
-### Training
-* 
+### Training 
 
 * Install Tensorflow & Keras
 
