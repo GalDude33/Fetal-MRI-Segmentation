@@ -6,6 +6,7 @@ from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
 from fetal_net.training import load_old_model, train_model
 from pathlib import Path
+
 import json
 import argparse
 
@@ -75,7 +76,7 @@ else:
     config["validation_file"] = os.path.join(config["base_dir"], "isensee_validation_ids.pkl")
     config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
 
-    config['scans_dir'] = "/home/galdude33/Lab/workspace/3DUnetCNN/data/cut_scans_2_proc"
+    config['scans_dir'] = "../Datasets/Cutted_to_fetus"
 
     with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
         json.dump(config, f, indent=2)
