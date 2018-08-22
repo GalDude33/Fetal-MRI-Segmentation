@@ -16,7 +16,6 @@ Where <config_dir> is the folder containing the training configurations (or will
 In the training above, part of the data was held out for validation purposes. 
 To write the predicted label maps to file:
 ```
-$ python -m brats.predict
+$ python -m brats.predict --config_dir <config_dir>
 ```
-The predictions will be written in the ```prediction``` folder along with the input data and ground truth labels for 
-comparison.
+The predictions will be written in the ```<config_dir>/prediction``` folder along with the input data and ground truth labels for comparison.
