@@ -1,13 +1,11 @@
+import json
 import os
 
 from fetal_net.prediction import run_validation_cases
-
-from train_fetal import config
-
-overlap_factor = 1
+import argparse
 
 
-def main():
+def main(config, overlap_factor=1):
     prediction_dir = os.path.abspath("prediction")
     run_validation_cases(validation_keys_file=config["validation_file"],
                          model_file=config["model_file"],
@@ -20,4 +18,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_dir", help="specifies config dir path",
+                        type=str, required=True)
+    parser.add_argument("--overlap_factor", help="specifies overlap between prediction patches",
+                        type=int, default=1)
+    opts = parser.parse_args()
+
+    with open(os.path.join(opts.config_dir, 'config.json')) as f:
+        config = json.load(f)
+
+    main(config, opts.overlap_factor)
