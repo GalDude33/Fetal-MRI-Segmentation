@@ -170,7 +170,8 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
             index = next(index_generator)
             add_data(x_list, y_list, data_file, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
-                     truth_index=truth_index, truth_downsample=truth_downsample)
+                     truth_index=truth_index, truth_downsample=truth_downsample,
+                     truth_crop=truth_crop)
         yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
 
 
@@ -196,6 +197,7 @@ def add_data(x_list, y_list, data_file, index, truth_index,
     ]
     if augment is not None:
         data_range = [(start, start + size) for start, size in zip(patch_corner, patch_shape)]
+
         truth_range = data_range[:2] + [(patch_corner[2] + truth_index,
                                          patch_corner[2] + truth_index + 1)]
         data, truth = augment_data(data, truth,
