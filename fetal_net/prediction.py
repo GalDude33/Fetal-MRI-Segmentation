@@ -24,8 +24,10 @@ def get_set_of_patch_indices_full(start, stop, step):
     return np.array(list(itertools.product(*indices)))
 
 
-def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=False):
+def patch_wise_prediction(model, data, patch_shape, overlap_factor=0, batch_size=5, permute=False,
+                          truth_data=None, prev_truth_index=None):
     """
+    :param truth_data:
     :param permute:
     :param overlap_factor:
     :param batch_size:
@@ -33,7 +35,6 @@ def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=F
     :param data:
     :return:
     """
-    patch_shape = tuple([int(dim) for dim in model.input.shape[-3:]])
     predictions = list()
 
     prediction_shape = model.output_shape[-3:-1]  # patch_shape[-3:-1] #[64,64]#
@@ -43,13 +44,20 @@ def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=F
     data_0 = np.pad(data[0],
                     [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
                      np.subtract(patch_shape, prediction_shape + (1,))],
-                    mode='constant', constant_values=np.min(data[0]))
+                    mode='constant', constant_values=np.percentile(data[0], q=1))
+
+    if truth_data is not None:
+        truth_0 = np.pad(truth_data[0],
+                         [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
+                          np.subtract(patch_shape, prediction_shape + (1,))],
+                         mode='constant', constant_values=0)
+        truth_patch_shape = list(patch_shape[:2]) + [1]
 
     indices = get_set_of_patch_indices_full((0, 0, 0),
                                             np.subtract(data_0.shape, patch_shape),
                                             np.subtract(patch_shape, overlap))
 
-    assert len(indices)*np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
+    assert len(indices) * np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
         'no total coverage for prediction, something wrong with the indexing'
 
     batch = list()
@@ -58,6 +66,11 @@ def patch_wise_prediction(model, data, overlap_factor=0, batch_size=5, permute=F
         while i < len(indices):
             while len(batch) < batch_size and i < len(indices):
                 patch = get_patch_from_3d_data(data_0, patch_shape=patch_shape, patch_index=indices[i])
+                if truth_data is not None:
+                    truth_index = list(indices[i][:2]) + [indices[i][2] + prev_truth_index]
+                    truth_patch = get_patch_from_3d_data(truth_0, patch_shape=truth_patch_shape,
+                                                         patch_index=truth_index)
+                    patch = np.concatenate([patch, truth_patch], axis=-1)
                 batch.append(patch)
                 i += 1
             prediction = predict(model, np.asarray(batch), permute=permute)
@@ -143,8 +156,9 @@ def multi_class_prediction(prediction, affine):
     return prediction_images
 
 
-def run_validation_case(data_index, output_dir, model, data_file, training_modalities,
-                        output_label_map=False, threshold=0.5, labels=None, overlap_factor=0, permute=False):
+def run_validation_case(data_index, output_dir, model, data_file, training_modalities, patch_shape,
+                        output_label_map=False, threshold=0.5, labels=None, overlap_factor=0, permute=False,
+                        prev_truth_index=None):
     """
     Runs a test case and writes predicted images to file.
     :param data_index: Index from of the list of test cases to get an image prediction from.
@@ -162,6 +176,11 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         os.makedirs(output_dir)
 
     test_data = np.asarray([data_file.root.data[data_index]])
+    if prev_truth_index is not None:
+        test_truth_data = np.asarray([data_file.root.truth[data_index]])
+    else:
+        test_truth_data = None
+
     for i, modality in enumerate(training_modalities):
         image = get_image(test_data[i])
         image.to_filename(os.path.join(output_dir, "data_{0}.nii.gz".format(modality)))
@@ -169,12 +188,13 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     test_truth = get_image(data_file.root.truth[data_index])
     test_truth.to_filename(os.path.join(output_dir, "truth.nii.gz"))
 
-    patch_shape = tuple([int(dim) for dim in model.input.shape[-3:]])
     if patch_shape == test_data.shape[-3:]:
         prediction = predict(model, test_data, permute=permute)
     else:
-        prediction = patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor, permute=permute)[
-            np.newaxis]
+        prediction = \
+            patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor,
+                                  patch_shape=patch_shape, permute=permute,
+                                  truth_data=test_truth_data, prev_truth_index=prev_truth_index)[np.newaxis]
     if prediction.shape[-1] > 1:
         prediction = prediction[..., 1]
     prediction = prediction.squeeze()
@@ -186,8 +206,9 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         prediction_image.to_filename(os.path.join(output_dir, "prediction.nii.gz"))
 
 
-def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file,
-                         output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0, permute=False):
+def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file, patch_shape,
+                         output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0,
+                         permute=False, prev_truth_index=None):
     validation_indices = pickle_load(validation_keys_file)
     model = load_old_model(model_file)
     data_file = tables.open_file(hdf5_file, "r")
@@ -198,7 +219,8 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
             case_directory = os.path.join(output_dir, "validation_case_{}".format(index))
         run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
                             training_modalities=training_modalities, output_label_map=output_label_map, labels=labels,
-                            threshold=threshold, overlap_factor=overlap_factor, permute=permute)
+                            threshold=threshold, overlap_factor=overlap_factor, permute=permute, patch_shape=patch_shape,
+                            prev_truth_index=prev_truth_index)
     data_file.close()
 
 

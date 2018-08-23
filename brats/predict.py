@@ -14,7 +14,9 @@ def main(config, overlap_factor=1):
                          hdf5_file=config["data_file"],
                          output_label_map=True,
                          output_dir=prediction_dir,
-                         overlap_factor=overlap_factor)
+                         overlap_factor=overlap_factor,
+                         patch_shape=config["patch_shape"]+[config["patch_depth"]],
+                         prev_truth_index=config["prev_truth_index"])
 
 
 if __name__ == "__main__":
