@@ -215,7 +215,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
                                                data_range=data_range, truth_range=truth_range,
                                                prev_truth_range=prev_truth_range)
     else:
-        data, truth, prev_truth = extract_random_patch(data, patch_shape, truth, truth_crop, prev_truth_index)
+        data, truth, prev_truth = extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index)
 
     if prev_truth is not None:
         data = np.concatenate([data, prev_truth], axis=-1)
@@ -239,9 +239,9 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
 def extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index=None):
     data = get_patch_from_3d_data(data, patch_shape, patch_corner)
     truth_shape = patch_shape[:-1] + (1,)
-    truth = get_patch_from_3d_data(truth,
-                                   truth_shape,
-                                   patch_corner + np.array((0, 0, truth_index)))
+    real_truth = get_patch_from_3d_data(truth,
+                                        truth_shape,
+                                        patch_corner + np.array((0, 0, truth_index)))
     if prev_truth_index is not None:
         prev_truth = get_patch_from_3d_data(truth,
                                             truth_shape,
@@ -249,7 +249,7 @@ def extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_trut
     else:
         prev_truth = None
 
-    return data, truth, prev_truth
+    return data, real_truth, prev_truth
 
 
 def extract_random_patch(data, patch_shape, truth, truth_index, prev_truth_index):
