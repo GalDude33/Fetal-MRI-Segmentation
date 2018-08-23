@@ -208,7 +208,7 @@ def add_data(x_list, y_list, data_file, index, truth_index,
                                    translate_deviation=augment['translate'],
                                    data_range=data_range, truth_range=truth_range)
     else:
-        data, truth = extract_random_patch(data, patch_shape, truth, truth_crop)
+        data, truth = extract_random_patch(data, patch_shape, truth, truth_index)
 
     if truth_downsample is not None and truth_downsample > 1:
         truth_shape = patch_shape[:-1] + (1,)
