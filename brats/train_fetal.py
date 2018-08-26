@@ -43,7 +43,7 @@ else:
     config["truth_downsample"] = 64
     config["truth_crop"] = True  # if true will crop sample else resize
 
-    config["model_name"] = 'fetal_origin_model'
+    config["model_name"] = 'fetal_origin2_model'
 
     config["labels"] = (1,)  # the label numbers on the input image
     config["n_labels"] = len(config["labels"])
@@ -55,12 +55,12 @@ else:
                                   [config["patch_depth"] + (config["prev_truth_size"] if config["prev_truth_index"] is not None else 0)])
     config["truth_channel"] = config["nb_channels"]
 
-    config["batch_size"] = 64
-    config["patches_per_img_per_batch"] = 25
-    config["validation_batch_size"] = 64
+    config["batch_size"] = 128
+    config["patches_per_img_per_batch"] = 20
+    config["validation_batch_size"] = 256
     config["n_epochs"] = 300  # cutoff the training after this many epochs
     config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
-    config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
+    config["early_stop"] = 25  # training will be stopped after this many epochs without the validation loss improving
     config["initial_learning_rate"] = 5e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
     config["validation_split"] = 0.90  # portion of the data that will be used for training
@@ -80,6 +80,7 @@ else:
     config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
     config["skip_blank_train"] = False  # if True, then patches without any target will be skipped
     config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
+    config["drop_easy_patches"] = True
 
     config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
     config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
@@ -152,7 +153,8 @@ def main(overwrite=False):
         truth_downsample=config["truth_downsample"],
         truth_crop=config["truth_crop"],
         patches_per_img_per_batch=config["patches_per_img_per_batch"],
-        categorical=config["categorical"])
+        categorical=config["categorical"],
+        drop_easy_patches=config["drop_easy_patches"])
 
     # run training
     train_model(model=model,

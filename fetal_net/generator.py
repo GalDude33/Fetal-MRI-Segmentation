@@ -30,12 +30,13 @@ def pad_samples(data_file, patch_shape, truth_downsample):
          for truth in data_file.root.truth]
 
 
-def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file, test_keys_file,
+def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
+                                           test_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
                                            truth_index=-1, truth_downsample=None, truth_crop=True,
                                            patches_per_img_per_batch=1, categorical=True, prev_truth_index=None,
-                                           prev_truth_size=None):
+                                           prev_truth_size=None, drop_easy_patches=False):
     """
     Creates the training and validation generators that can be used when training the model.
     :param prev_truth_inedx:
@@ -88,7 +89,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                         prev_truth_index=prev_truth_index,
                                         prev_truth_size=prev_truth_size,
                                         truth_downsample=truth_downsample, truth_crop=truth_crop,
-                                        categorical=categorical)
+                                        categorical=categorical, drop_easy_patches=drop_easy_patches)
     validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
                                           n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                                           skip_blank=skip_blank_val,
@@ -97,7 +98,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                           prev_truth_size=prev_truth_size,
                                           truth_downsample=truth_downsample,
                                           truth_crop=truth_crop,
-                                          categorical=categorical)
+                                          categorical=categorical,
+                                          drop_easy_patches=drop_easy_patches)
 
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
@@ -167,7 +169,7 @@ def list_generator(index_list):
 
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
                    shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True,
-                   categorical=True, prev_truth_index=None, prev_truth_size=None):
+                   categorical=True, prev_truth_index=None, prev_truth_size=None, drop_easy_patches=False):
     index_generator = random_list_generator(index_list) if shuffle_index_list else list_generator(index_list)
     while True:
         x_list = list()
@@ -179,12 +181,13 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
                      patch_shape=patch_shape, skip_blank=skip_blank,
                      truth_index=truth_index, truth_downsample=truth_downsample,
                      truth_crop=truth_crop, prev_truth_index=prev_truth_index,
-                     prev_truth_size=prev_truth_size)
+                     prev_truth_size=prev_truth_size, drop_easy_patches=drop_easy_patches)
         yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
 
 
 def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_shape=None, skip_blank=True,
-             truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None):
+             truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None,
+             drop_easy_patches=False):
     """
     Adds data from the data file to the given lists of feature and target data
     :param prev_truth_index:
@@ -225,10 +228,16 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
                                                data_range=data_range, truth_range=truth_range,
                                                prev_truth_range=prev_truth_range)
     else:
-        data, truth, prev_truth = extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index, prev_truth_size)
+        data, truth, prev_truth = extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index,
+                                                prev_truth_size)
 
     if prev_truth is not None:
         data = np.concatenate([data, prev_truth], axis=-1)
+
+    if drop_easy_patches:
+        truth_mean = np.mean(truth[16:-16, 16:-16, :])
+        if 1 - np.abs(truth_mean - 0.5) > np.random.random():
+            return
 
     if truth_downsample is not None and truth_downsample > 1:
         truth_shape = patch_shape[:-1] + (1,)
