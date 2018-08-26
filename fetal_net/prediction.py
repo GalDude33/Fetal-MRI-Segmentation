@@ -6,6 +6,7 @@ import numpy as np
 import tables
 from tqdm import tqdm
 
+from brats.utils import get_last_model_path
 from fetal_net.utils.utils import get_image, resize
 from .training import load_old_model
 from .utils import pickle_load
@@ -210,7 +211,7 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
                          output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0,
                          permute=False, prev_truth_index=None):
     validation_indices = pickle_load(validation_keys_file)
-    model = load_old_model(model_file)
+    model = load_old_model(get_last_model_path(model_file))
     data_file = tables.open_file(hdf5_file, "r")
     for index in validation_indices:
         if 'subject_ids' in data_file.root:

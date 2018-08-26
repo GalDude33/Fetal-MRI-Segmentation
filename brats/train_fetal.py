@@ -2,6 +2,7 @@ import os
 import glob
 
 import fetal_net
+from brats.utils import get_last_model_path
 from fetal_net.data import write_data_to_file, open_data_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
@@ -120,7 +121,7 @@ def main(overwrite=False):
     data_file_opened = open_data_file(config["data_file"])
 
     if not overwrite and len(glob.glob(config["model_file"] + '*.h5')) > 0:
-        model_path = sorted(glob.glob(config["model_file"] + '*.h5'), key=os.path.getmtime)[-1]
+        model_path = get_last_model_path(config["model_file"])
         print('Loading model from: {}'.format(model_path))
         model = load_old_model(model_path)
     else:
