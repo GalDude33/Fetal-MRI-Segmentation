@@ -30,11 +30,12 @@ def pad_samples(data_file, patch_shape, truth_downsample):
          for truth in data_file.root.truth]
 
 
-def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
+def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file, test_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
                                            truth_index=-1, truth_downsample=None, truth_crop=True,
-                                           patches_per_img_per_batch=1, categorical=True, prev_truth_index=None):
+                                           patches_per_img_per_batch=1, categorical=True, prev_truth_index=None,
+                                           prev_truth_size=None):
     """
     Creates the training and validation generators that can be used when training the model.
     :param prev_truth_inedx:
@@ -74,16 +75,18 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
 
     pad_samples(data_file, patch_shape, truth_downsample)
 
-    training_list, validation_list = get_validation_split(data_file,
-                                                          data_split=data_split,
-                                                          overwrite=overwrite,
-                                                          training_file=training_keys_file,
-                                                          validation_file=validation_keys_file)
+    training_list, validation_list, _ = get_validation_split(data_file,
+                                                             data_split=data_split,
+                                                             overwrite=overwrite,
+                                                             training_file=training_keys_file,
+                                                             validation_file=validation_keys_file,
+                                                             test_file=test_keys_file)
 
     training_generator = data_generator(data_file, training_list, batch_size=batch_size, n_labels=n_labels,
                                         labels=labels, augment=augment, patch_shape=patch_shape,
                                         skip_blank=skip_blank_train, truth_index=truth_index,
                                         prev_truth_index=prev_truth_index,
+                                        prev_truth_size=prev_truth_size,
                                         truth_downsample=truth_downsample, truth_crop=truth_crop,
                                         categorical=categorical)
     validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
@@ -91,6 +94,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                           skip_blank=skip_blank_val,
                                           truth_index=truth_index,
                                           prev_truth_index=prev_truth_index,
+                                          prev_truth_size=prev_truth_size,
                                           truth_downsample=truth_downsample,
                                           truth_crop=truth_crop,
                                           categorical=categorical)
@@ -114,27 +118,31 @@ def get_number_of_steps(n_samples, batch_size):
         return n_samples // batch_size + 1
 
 
-def get_validation_split(data_file, training_file, validation_file, data_split=0.8, overwrite=False):
+def get_validation_split(data_file, training_file, validation_file, test_file, data_split=0.8, overwrite=False):
     """
     Splits the data into the training and validation indices list.
     :param data_file: pytables hdf5 data file
     :param training_file:
     :param validation_file:
     :param data_split:
-    :param overwrite:
+    :param o
+    verwrite:
     :return:
     """
     if overwrite or not os.path.exists(training_file):
         print("Creating validation split...")
         nb_samples = len(data_file.root.data)
         sample_list = list(range(nb_samples))
+        random.shuffle(sample_list)
+        test_list = [sample_list.pop()]
         training_list, validation_list = split_list(sample_list, split=data_split)
         pickle_dump(training_list, training_file)
         pickle_dump(validation_list, validation_file)
-        return training_list, validation_list
+        pickle_dump(test_list, test_file)
+        return training_list, validation_list, test_list
     else:
         print("Loading previous validation split...")
-        return pickle_load(training_file), pickle_load(validation_file)
+        return pickle_load(training_file), pickle_load(validation_file), pickle_load(test_file)
 
 
 def split_list(input_list, split=0.8, shuffle_list=True):
@@ -148,6 +156,7 @@ def split_list(input_list, split=0.8, shuffle_list=True):
 
 def random_list_generator(index_list):
     while True:
+        np.random.seed()
         yield from random.sample(index_list, len(index_list))
 
 
@@ -158,7 +167,7 @@ def list_generator(index_list):
 
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
                    shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True,
-                   categorical=True, prev_truth_index=None):
+                   categorical=True, prev_truth_index=None, prev_truth_size=None):
     index_generator = random_list_generator(index_list) if shuffle_index_list else list_generator(index_list)
     while True:
         x_list = list()
@@ -169,12 +178,13 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
             add_data(x_list, y_list, data_file, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
                      truth_index=truth_index, truth_downsample=truth_downsample,
-                     truth_crop=truth_crop, prev_truth_index=prev_truth_index)
+                     truth_crop=truth_crop, prev_truth_index=prev_truth_index,
+                     prev_truth_size=prev_truth_size)
         yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
 
 
 def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_shape=None, skip_blank=True,
-             truth_downsample=None, truth_crop=True, prev_truth_index=None):
+             truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None):
     """
     Adds data from the data file to the given lists of feature and target data
     :param prev_truth_index:
@@ -202,7 +212,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
 
         if prev_truth_index is not None:
             prev_truth_range = data_range[:2] + [(patch_corner[2] + prev_truth_index,
-                                                  patch_corner[2] + prev_truth_index + 1)]
+                                                  patch_corner[2] + prev_truth_index + prev_truth_size)]
         else:
             prev_truth_range = None
 
@@ -215,7 +225,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
                                                data_range=data_range, truth_range=truth_range,
                                                prev_truth_range=prev_truth_range)
     else:
-        data, truth, prev_truth = extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index)
+        data, truth, prev_truth = extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index, prev_truth_size)
 
     if prev_truth is not None:
         data = np.concatenate([data, prev_truth], axis=-1)
@@ -236,7 +246,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
         y_list.append(truth)
 
 
-def extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index=None):
+def extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index=None, prev_truth_size=1):
     data = get_patch_from_3d_data(data, patch_shape, patch_corner)
     truth_shape = patch_shape[:-1] + (1,)
     real_truth = get_patch_from_3d_data(truth,
@@ -244,7 +254,7 @@ def extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_trut
                                         patch_corner + np.array((0, 0, truth_index)))
     if prev_truth_index is not None:
         prev_truth = get_patch_from_3d_data(truth,
-                                            truth_shape,
+                                            patch_shape[:-1] + (prev_truth_size,),
                                             patch_corner + np.array((0, 0, prev_truth_index)))
     else:
         prev_truth = None
