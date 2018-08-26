@@ -1,6 +1,7 @@
 import os
 import glob
 
+import fetal_net
 from fetal_net.data import write_data_to_file, open_data_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
@@ -16,6 +17,8 @@ parser.add_argument("--overwrite_config", help="overwrite saved config",
                     action="store_true")
 parser.add_argument("--config_dir", help="specifies config dir path",
                     type=str, required=True)
+parser.add_argument("--split_dir", help="specifies config dir path",
+                    type=str, required=True)
 opts = parser.parse_args()
 
 # Load previous config if exists
@@ -26,16 +29,21 @@ if Path(os.path.join(opts.config_dir, 'config.json')).exists() and not opts.over
 else:
     config = dict()
     config["base_dir"] = opts.config_dir
+    config["split_dir"] = opts.split_dir
 
     Path(config["base_dir"]).mkdir(parents=True, exist_ok=True)
+    Path(config["split_dir"]).mkdir(parents=True, exist_ok=True)
 
     # config["image_shape"] = (256, 256, 108)  # This determines what shape the images will be cropped/resampled to.
     config["patch_shape"] = (65, 65)  # switch to None to train on the whole image
     config["patch_depth"] = 5
     config["truth_index"] = 2
     config["prev_truth_index"] = 1  # None for regular training
+    config["prev_truth_size"] = 1  # None for regular training
     config["truth_downsample"] = 64
-    config["truth_crop"] = True  # if true will crop sample
+    config["truth_crop"] = True  # if true will crop sample else resize
+
+    config["model_name"] = 'fetal_origin_model'
 
     config["labels"] = (1,)  # the label numbers on the input image
     config["n_labels"] = len(config["labels"])
@@ -44,15 +52,14 @@ else:
         "all_modalities"]  # change this if you want to only use some of the modalities
     config["nb_channels"] = len(config["training_modalities"])
     config["input_shape"] = tuple(list(config["patch_shape"]) +
-                                  [config["patch_depth"] + (1 if config["prev_truth_index"] is not None else 0)])
+                                  [config["patch_depth"] + (config["prev_truth_size"] if config["prev_truth_index"] is not None else 0)])
     config["truth_channel"] = config["nb_channels"]
 
-    config["batch_size"] = 16
-    config["patches_per_img_per_batch"] = 100
-    config["validation_batch_size"] = 16
+    config["batch_size"] = 64
+    config["patches_per_img_per_batch"] = 25
+    config["validation_batch_size"] = 64
     config["n_epochs"] = 300  # cutoff the training after this many epochs
-    config[
-        "patience"] = 10  # learning rate will be reduced after this many epochs if the validation loss is not improving
+    config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
     config["early_stop"] = 50  # training will be stopped after this many epochs without the validation loss improving
     config["initial_learning_rate"] = 5e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
@@ -62,11 +69,11 @@ else:
     config["loss"] = 'binary_cross_entropy'  # or 'dice_coeeficient'
 
     config["augment"] = {
-        "flip": [0.25, 0.25, 0.25],  # augments the data by randomly flipping an axis during
+        "flip": [0.5, 0.5, 0],  # augments the data by randomly flipping an axis during
         "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
         "translate": (10, 10, 5),  #
         "scale": 0.10,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
-        "rotate": (5, 5, 10)  # std of angle rotation, switch to None if you want no rotation
+        "rotate": (3, 3, 7),  # std of angle rotation, switch to None if you want no rotation
     }
     config["augment"] = config["augment"] if any(config["augment"].values()) else None
     config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
@@ -75,12 +82,13 @@ else:
     config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
 
     config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
-    config["model_file"] = os.path.join(config["base_dir"], "isensee_2017_model.h5")
-    config["training_file"] = os.path.join(config["base_dir"], "isensee_training_ids.pkl")
-    config["validation_file"] = os.path.join(config["base_dir"], "isensee_validation_ids.pkl")
+    config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
+    config["training_file"] = os.path.join(opts.split_dir, "training_ids.pkl")
+    config["validation_file"] = os.path.join(opts.split_dir, "validation_ids.pkl")
+    config["test_file"] = os.path.join(opts.split_dir, "test_ids.pkl")
     config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
 
-    config['scans_dir'] = "../Datasets/Cutted_to_fetus"
+    config['scans_dir'] = "../../Datasets/Cutted_to_fetus"
 
     with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
         json.dump(config, f, indent=2)
@@ -110,13 +118,16 @@ def main(overwrite=False):
         write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids)
     data_file_opened = open_data_file(config["data_file"])
 
-    if not overwrite and os.path.exists(config["model_file"]):
-        model = load_old_model(config["model_file"])
+    if not overwrite and len(glob.glob(config["model_file"] + '*.h5')) > 0:
+        model_path = sorted(glob.glob(config["model_file"] + '*.h5'), key=os.path.getmtime)[-1]
+        print('Loading model from: {}'.format(model_path))
+        model = load_old_model(model_path)
     else:
         # instantiate new model
-        model = fetal_envelope_model(input_shape=config["input_shape"],
-                                     initial_learning_rate=config["initial_learning_rate"],
-                                     loss_function=config["loss"])
+        model_func = getattr(fetal_net.model, config['model_name'])
+        model = model_func(input_shape=config["input_shape"],
+                           initial_learning_rate=config["initial_learning_rate"],
+                           loss_function=config["loss"])
     model.summary()
 
     # get training and testing generators
@@ -127,6 +138,7 @@ def main(overwrite=False):
         overwrite=overwrite,
         validation_keys_file=config["validation_file"],
         training_keys_file=config["training_file"],
+        test_keys_file=config["test_file"],
         n_labels=config["n_labels"],
         labels=config["labels"],
         patch_shape=(*config["patch_shape"], config["patch_depth"]),
@@ -136,6 +148,7 @@ def main(overwrite=False):
         skip_blank_val=config["skip_blank_val"],
         truth_index=config["truth_index"],
         prev_truth_index=config["prev_truth_index"],
+        prev_truth_size=config["prev_truth_size"],
         truth_downsample=config["truth_downsample"],
         truth_crop=config["truth_crop"],
         patches_per_img_per_batch=config["patches_per_img_per_batch"],
@@ -152,7 +165,8 @@ def main(overwrite=False):
                 learning_rate_drop=config["learning_rate_drop"],
                 learning_rate_patience=config["patience"],
                 early_stopping_patience=config["early_stop"],
-                n_epochs=config["n_epochs"])
+                n_epochs=config["n_epochs"],
+                output_folder=config["base_dir"])
     data_file_opened.close()
 
 
