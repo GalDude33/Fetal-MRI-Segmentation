@@ -81,8 +81,8 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                                             np.subtract(data_0.shape, patch_shape),
                                             np.subtract(patch_shape, overlap))
 
-    assert len(indices) * np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
-        'no total coverage for prediction, something wrong with the indexing'
+    # assert len(indices) * np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
+    #     'no total coverage for prediction, something wrong with the indexing'
 
     b_iter = batch_iterator(indices, batch_size, data_0, patch_shape,
                             truth_0, prev_truth_index, truth_patch_shape)
