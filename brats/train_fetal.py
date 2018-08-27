@@ -81,7 +81,8 @@ else:
     config["training_patch_start_offset"] = (16, 16, 16)  # randomly offset the first patch index by up to this offset
     config["skip_blank_train"] = False  # if True, then patches without any target will be skipped
     config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
-    config["drop_easy_patches"] = True
+    config["drop_easy_patches_train"] = True
+    config["drop_easy_patches_val"] = True
 
     config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
     config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
@@ -155,7 +156,8 @@ def main(overwrite=False):
         truth_crop=config["truth_crop"],
         patches_per_img_per_batch=config["patches_per_img_per_batch"],
         categorical=config["categorical"],
-        drop_easy_patches=config["drop_easy_patches"])
+        drop_easy_patches_train=config["drop_easy_patches_train"],
+        drop_easy_patches_val=config["drop_easy_patches_val"])
 
     # run training
     train_model(model=model,

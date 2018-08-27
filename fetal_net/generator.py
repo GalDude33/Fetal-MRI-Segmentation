@@ -36,7 +36,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
                                            truth_index=-1, truth_downsample=None, truth_crop=True,
                                            patches_per_img_per_batch=1, categorical=True, prev_truth_index=None,
-                                           prev_truth_size=None, drop_easy_patches=False):
+                                           prev_truth_size=None,
+                                           drop_easy_patches_train=False, drop_easy_patches_val=False):
     """
     Creates the training and validation generators that can be used when training the model.
     :param prev_truth_inedx:
@@ -89,7 +90,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                         prev_truth_index=prev_truth_index,
                                         prev_truth_size=prev_truth_size,
                                         truth_downsample=truth_downsample, truth_crop=truth_crop,
-                                        categorical=categorical, drop_easy_patches=drop_easy_patches)
+                                        categorical=categorical, drop_easy_patches=drop_easy_patches_train)
     validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
                                           n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                                           skip_blank=skip_blank_val,
@@ -99,7 +100,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                           truth_downsample=truth_downsample,
                                           truth_crop=truth_crop,
                                           categorical=categorical,
-                                          drop_easy_patches=drop_easy_patches)
+                                          drop_easy_patches=drop_easy_patches_val)
 
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
