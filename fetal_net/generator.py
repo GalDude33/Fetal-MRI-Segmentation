@@ -237,7 +237,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
 
     if drop_easy_patches:
         truth_mean = np.mean(truth[16:-16, 16:-16, :])
-        if 1 - np.abs(truth_mean - 0.5) > np.random.random():
+        if 1 - np.abs(truth_mean - 0.5) < np.random.random():
             return
 
     if truth_downsample is not None and truth_downsample > 1:
