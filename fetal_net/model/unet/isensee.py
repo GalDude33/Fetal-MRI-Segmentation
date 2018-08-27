@@ -1,18 +1,24 @@
 from functools import partial
 
-from keras.layers import Input, LeakyReLU, Add, UpSampling2D, Activation, SpatialDropout2D, Conv2D, Permute
+from keras.layers import Input, Add, UpSampling2D, Activation, SpatialDropout2D, Conv2D, Permute  # , LeakyReLU
 from keras.engine import Model
 from keras.optimizers import Adam
 
 from .unet import create_convolution_block, concatenate
 from ...metrics import weighted_dice_coefficient_loss
 
+import keras.backend as K
+
+
+def LeakyReLU(alpha=0.3):
+    return Activation(lambda x: K.maximum(x, alpha * x))
+
 
 create_convolution_block = partial(create_convolution_block, activation=LeakyReLU, instance_normalization=True)
 
 
 def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
-                      n_segmentation_levels=3, n_labels=4, optimizer=Adam, initial_learning_rate=5e-4,
+                      n_segmentation_levels=3, n_labels=1, optimizer=Adam, initial_learning_rate=5e-4,
                       loss_function=weighted_dice_coefficient_loss, activation_name="sigmoid"):
     """
     This function builds a model proposed by Isensee et al. for the BRATS 2017 competition:
@@ -37,7 +43,7 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
     level_output_layers = list()
     level_filters = list()
     for level_number in range(depth):
-        n_level_filters = (2**level_number) * n_base_filters
+        n_level_filters = (2 ** level_number) * n_base_filters
         level_filters.append(n_level_filters)
 
         if current_layer is inputs_p:
