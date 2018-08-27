@@ -1,6 +1,6 @@
 from functools import partial
 
-from keras.layers import Input, LeakyReLU, Add, UpSampling2D, Activation, SpatialDropout2D, Conv2D
+from keras.layers import Input, LeakyReLU, Add, UpSampling2D, Activation, SpatialDropout2D, Conv2D, Permute
 from keras.engine import Model
 from keras.optimizers import Adam
 
@@ -32,18 +32,18 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
     :return:
     """
     inputs = Input(input_shape)
-
-    current_layer = inputs
+    inputs_p = Permute((3, 1, 2))(inputs)
+    current_layer = inputs_p
     level_output_layers = list()
     level_filters = list()
     for level_number in range(depth):
         n_level_filters = (2**level_number) * n_base_filters
         level_filters.append(n_level_filters)
 
-        if current_layer is inputs:
+        if current_layer is inputs_p:
             in_conv = create_convolution_block(current_layer, n_level_filters)
         else:
-            in_conv = create_convolution_block(current_layer, n_level_filters, strides=(2, 2, 2))
+            in_conv = create_convolution_block(current_layer, n_level_filters, strides=(2, 2))
 
         context_output_layer = create_context_module(in_conv, n_level_filters, dropout_rate=dropout_rate)
 
@@ -58,7 +58,7 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
         localization_output = create_localization_module(concatenation_layer, level_filters[level_number])
         current_layer = localization_output
         if level_number < n_segmentation_levels:
-            segmentation_layers.insert(0, Conv2D(n_labels, (1, 1, 1))(current_layer))
+            segmentation_layers.insert(0, Conv2D(n_labels, (1, 1))(current_layer))
 
     output_layer = None
     for level_number in reversed(range(n_segmentation_levels)):
@@ -72,7 +72,7 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
             output_layer = UpSampling2D(size=(2, 2))(output_layer)
 
     activation_block = Activation(activation_name)(output_layer)
-
+    activation_block = Permute((2, 3, 1))(activation_block)
     model = Model(inputs=inputs, outputs=activation_block)
     model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function)
     return model
@@ -80,11 +80,11 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
 
 def create_localization_module(input_layer, n_filters):
     convolution1 = create_convolution_block(input_layer, n_filters)
-    convolution2 = create_convolution_block(convolution1, n_filters, kernel=(1, 1, 1))
+    convolution2 = create_convolution_block(convolution1, n_filters, kernel=(1, 1))
     return convolution2
 
 
-def create_up_sampling_module(input_layer, n_filters, size=(2, 2, 2)):
+def create_up_sampling_module(input_layer, n_filters, size=(2, 2)):
     up_sample = UpSampling2D(size=size)(input_layer)
     convolution = create_convolution_block(up_sample, n_filters)
     return convolution
