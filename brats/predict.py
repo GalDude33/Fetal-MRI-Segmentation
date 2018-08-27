@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument("--split", help="What split to predict on? (test/val)",
                         type=str, default='test')
     parser.add_argument("--overlap_factor", help="specifies overlap between prediction patches",
-                        type=int, default=1)
+                        type=float, default=1)
     opts = parser.parse_args()
 
     with open(os.path.join(opts.config_dir, 'config.json')) as f:
