@@ -22,12 +22,22 @@ def pad_samples(data_file, patch_shape, truth_downsample):
                     patch_shape[1] // truth_downsample,
                     1]
     padding = np.ceil(np.subtract(patch_shape, output_shape) / 2).astype(int)
+
     data_file.root.data = \
         [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=data_min)
          for data, data_min in zip(data_file.root.data, data_file.root.data_min)]
     data_file.root.truth = \
         [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
          for truth in data_file.root.truth]
+
+    data_file.root.data = \
+        [np.pad(data, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape)+1, 0)/2).astype(int)], 'constant', constant_values=data_min)
+         for data, data_min in zip(data_file.root.data, data_file.root.data_min)]
+    data_file.root.truth = \
+        [np.pad(truth, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape)+1, 0)/2).astype(int)], 'constant', constant_values=0)
+         for truth in data_file.root.truth]
+
+
 
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
