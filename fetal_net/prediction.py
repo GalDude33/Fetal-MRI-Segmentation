@@ -4,9 +4,11 @@ import os
 import nibabel as nib
 import numpy as np
 import tables
+from keras import Model
 from tqdm import tqdm
 
 from brats.utils import get_last_model_path
+from fetal_net.utils.threaded_generator import ThreadedGenerator
 from fetal_net.utils.utils import get_image, resize
 from .training import load_old_model
 from .utils import pickle_load
@@ -25,7 +27,7 @@ def get_set_of_patch_indices_full(start, stop, step):
     return np.array(list(itertools.product(*indices)))
 
 
-def patch_wise_prediction(model, data, patch_shape, overlap_factor=0, batch_size=5, permute=False,
+def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, batch_size=5, permute=False,
                           truth_data=None, prev_truth_index=None):
     """
     :param truth_data:
@@ -63,8 +65,11 @@ def patch_wise_prediction(model, data, patch_shape, overlap_factor=0, batch_size
 
     batch = list()
     i = 0
-    with tqdm(total=len(indices)) as pbar:
+
+    def batch_iterator():
+        i = 0
         while i < len(indices):
+            batch = []
             while len(batch) < batch_size and i < len(indices):
                 patch = get_patch_from_3d_data(data_0, patch_shape=patch_shape, patch_index=indices[i])
                 if truth_data is not None:
@@ -74,6 +79,22 @@ def patch_wise_prediction(model, data, patch_shape, overlap_factor=0, batch_size
                     patch = np.concatenate([patch, truth_patch], axis=-1)
                 batch.append(patch)
                 i += 1
+            yield batch
+    b_iter = batch_iterator()
+    tb_iter = iter(ThreadedGenerator(b_iter, queue_maxsize=50))
+
+    with tqdm(total=len(indices)) as pbar:
+        while i < len(indices):
+            # while len(batch) < batch_size and i < len(indices):
+            #     patch = get_patch_from_3d_data(data_0, patch_shape=patch_shape, patch_index=indices[i])
+            #     if truth_data is not None:
+            #         truth_index = list(indices[i][:2]) + [indices[i][2] + prev_truth_index]
+            #         truth_patch = get_patch_from_3d_data(truth_0, patch_shape=truth_patch_shape,
+            #                                              patch_index=truth_index)
+            #         patch = np.concatenate([patch, truth_patch], axis=-1)
+            #     batch.append(patch)
+            #     i += 1
+            batch = next(tb_iter)
             prediction = predict(model, np.asarray(batch), permute=permute)
             prediction = np.expand_dims(prediction, -2)
 
@@ -220,7 +241,8 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
             case_directory = os.path.join(output_dir, "validation_case_{}".format(index))
         run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
                             training_modalities=training_modalities, output_label_map=output_label_map, labels=labels,
-                            threshold=threshold, overlap_factor=overlap_factor, permute=permute, patch_shape=patch_shape,
+                            threshold=threshold, overlap_factor=overlap_factor, permute=permute,
+                            patch_shape=patch_shape,
                             prev_truth_index=prev_truth_index)
     data_file.close()
 
