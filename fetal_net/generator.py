@@ -75,7 +75,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
 
     data_file = DataFileDummy(data_file)
 
-    pad_samples(data_file, patch_shape, truth_downsample)
+    pad_samples(data_file, patch_shape, truth_downsample or 1)
 
     training_list, validation_list, _ = get_validation_split(data_file,
                                                              data_split=data_split,
