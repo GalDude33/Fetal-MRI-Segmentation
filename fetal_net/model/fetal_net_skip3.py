@@ -8,7 +8,7 @@ from tensorflow import Tensor
 
 import numpy as np
 
-def fetal_origin2_model(input_shape=(5, 128, 128),
+def fetal_origin3_model(input_shape=(5, 128, 128),
                        optimizer=RMSprop,
                        initial_learning_rate=5e-4,
                        loss_function='binary_cross_entropy'):
