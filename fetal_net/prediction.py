@@ -27,6 +27,26 @@ def get_set_of_patch_indices_full(start, stop, step):
     return np.array(list(itertools.product(*indices)))
 
 
+def batch_iterator(indices, batch_size, data_0, patch_shape, truth_0, prev_truth_index, truth_patch_shape):
+    i = 0
+    while i < len(indices):
+        batch = []
+        curr_indices = []
+        while len(batch) < batch_size and i < len(indices):
+            curr_index = indices[i]
+            patch = get_patch_from_3d_data(data_0, patch_shape=patch_shape, patch_index=curr_index)
+            if truth_0 is not None:
+                truth_index = list(curr_index[:2]) + [curr_index[2] + prev_truth_index]
+                truth_patch = get_patch_from_3d_data(truth_0, patch_shape=truth_patch_shape,
+                                                     patch_index=truth_index)
+                patch = np.concatenate([patch, truth_patch], axis=-1)
+            batch.append(patch)
+            curr_indices.append(curr_index)
+            i += 1
+        yield [batch, curr_indices]
+    print('Finished! {}-{}'.format(i, len(indices)))
+
+
 def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, batch_size=5, permute=False,
                           truth_data=None, prev_truth_index=None):
     """
@@ -38,8 +58,6 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
     :param data:
     :return:
     """
-    predictions = list()
-
     prediction_shape = model.output_shape[-3:-1]  # patch_shape[-3:-1] #[64,64]#
     min_overlap = np.subtract(patch_shape, prediction_shape + (1,))
     max_overlap = np.subtract(patch_shape, (1, 1, 1))
@@ -55,6 +73,9 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                           np.subtract(patch_shape, prediction_shape + (1,))],
                          mode='constant', constant_values=0)
         truth_patch_shape = list(patch_shape[:2]) + [1]
+    else:
+        truth_0 = None
+        truth_patch_shape = None
 
     indices = get_set_of_patch_indices_full((0, 0, 0),
                                             np.subtract(data_0.shape, patch_shape),
@@ -63,39 +84,15 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
     assert len(indices) * np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
         'no total coverage for prediction, something wrong with the indexing'
 
-    batch = list()
-    i = 0
-
-    def batch_iterator():
-        i = 0
-        while i < len(indices):
-            batch = []
-            while len(batch) < batch_size and i < len(indices):
-                patch = get_patch_from_3d_data(data_0, patch_shape=patch_shape, patch_index=indices[i])
-                if truth_data is not None:
-                    truth_index = list(indices[i][:2]) + [indices[i][2] + prev_truth_index]
-                    truth_patch = get_patch_from_3d_data(truth_0, patch_shape=truth_patch_shape,
-                                                         patch_index=truth_index)
-                    patch = np.concatenate([patch, truth_patch], axis=-1)
-                batch.append(patch)
-                i += 1
-            yield batch
-    b_iter = batch_iterator()
+    b_iter = batch_iterator(indices, batch_size, data_0, patch_shape,
+                            truth_0, prev_truth_index, truth_patch_shape)
     tb_iter = iter(ThreadedGenerator(b_iter, queue_maxsize=50))
 
+    data_shape = list(data.shape[-3:]) + [model.output_shape[-1]]
+    predicted_output = np.zeros(data_shape)
     with tqdm(total=len(indices)) as pbar:
-        while i < len(indices):
-            # while len(batch) < batch_size and i < len(indices):
-            #     patch = get_patch_from_3d_data(data_0, patch_shape=patch_shape, patch_index=indices[i])
-            #     if truth_data is not None:
-            #         truth_index = list(indices[i][:2]) + [indices[i][2] + prev_truth_index]
-            #         truth_patch = get_patch_from_3d_data(truth_0, patch_shape=truth_patch_shape,
-            #                                              patch_index=truth_index)
-            #         patch = np.concatenate([patch, truth_patch], axis=-1)
-            #     batch.append(patch)
-            #     i += 1
-            batch = next(tb_iter)
-            prediction = predict(model, np.asarray(batch), permute=permute)
+        for [curr_batch, batch_indices] in tb_iter:
+            prediction = predict(model, np.asarray(curr_batch), permute=permute)
             prediction = np.expand_dims(prediction, -2)
 
             if prediction.shape[-4:-2] < prediction_shape:
@@ -104,15 +101,16 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                                     interpolation='nearest').get_data()
                 prediction = np.expand_dims(np.expand_dims(prediction, axis=0), axis=-2)
 
-            batch = list()
-            for predicted_patch in prediction:
-                predictions.append(predicted_patch)
+            for predicted_patch, predicted_index in zip(prediction, batch_indices):
+                # predictions.append(predicted_patch)
+                x, y, z = predicted_index
+                predicted_output[x, y, z, :] = predicted_patch
             pbar.update(batch_size)
 
     # ind_offset = np.subtract(patch_shape[-3:], prediction_shape + (1,)) // 2
     # indices = [np.add(ind, ind_offset) for ind in indices]
-    data_shape = list(data.shape[-3:]) + [model.output_shape[-1]]
-    return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
+    return predicted_output
+    # return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
 
 
 def get_prediction_labels(prediction, threshold=0.5, labels=None):
