@@ -90,26 +90,24 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
 
     data_shape = list(data.shape[-3:]) + [model.output_shape[-1]]
     predicted_output = np.zeros(data_shape)
+    predicted_count = np.zeros(data_shape, dtype=np.int16)
     with tqdm(total=len(indices)) as pbar:
         for [curr_batch, batch_indices] in tb_iter:
             prediction = predict(model, np.asarray(curr_batch), permute=permute)
             prediction = np.expand_dims(prediction, -2)
 
-            if prediction.shape[-4:-2] < prediction_shape:
-                prediction = resize(get_image(prediction.squeeze()),
-                                    new_shape=prediction_shape + (2,),
-                                    interpolation='nearest').get_data()
-                prediction = np.expand_dims(np.expand_dims(prediction, axis=0), axis=-2)
-
             for predicted_patch, predicted_index in zip(prediction, batch_indices):
                 # predictions.append(predicted_patch)
                 x, y, z = predicted_index
-                predicted_output[x, y, z, :] = predicted_patch
+                x_len, y_len, z_len = predicted_patch.shape[:-1]
+                predicted_output[x:x+x_len, y:y+y_len, z:z+z_len, :] += predicted_patch
+                predicted_count[x:x+x_len, y:y+y_len, z:z+z_len] += 1
             pbar.update(batch_size)
 
     # ind_offset = np.subtract(patch_shape[-3:], prediction_shape + (1,)) // 2
     # indices = [np.add(ind, ind_offset) for ind in indices]
-    return predicted_output
+    assert np.all(predicted_count > 0), 'Found zeros in count'
+    return predicted_output / predicted_count
     # return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
 
 
