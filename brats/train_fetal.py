@@ -36,15 +36,15 @@ else:
     Path(config["split_dir"]).mkdir(parents=True, exist_ok=True)
 
     # config["image_shape"] = (256, 256, 108)  # This determines what shape the images will be cropped/resampled to.
-    config["patch_shape"] = (65, 65)  # switch to None to train on the whole image
+    config["patch_shape"] = (128, 128)  # switch to None to train on the whole image
     config["patch_depth"] = 5
     config["truth_index"] = 2
-    config["prev_truth_index"] = 1  # None for regular training
-    config["prev_truth_size"] = 1  # None for regular training
-    config["truth_downsample"] = 64
-    config["truth_crop"] = True  # if true will crop sample else resize
+    config["prev_truth_index"] = None  # None for regular training
+    config["prev_truth_size"] = None  # None for regular training
+    config["truth_downsample"] = None
+    config["truth_crop"] = None  # True  # if true will crop sample else resize
 
-    config["model_name"] = 'fetal_origin2_model'
+    config["model_name"] = 'unet_model_2d'
 
     config["labels"] = (1,)  # the label numbers on the input image
     config["n_labels"] = len(config["labels"])
@@ -53,20 +53,22 @@ else:
         "all_modalities"]  # change this if you want to only use some of the modalities
     config["nb_channels"] = len(config["training_modalities"])
     config["input_shape"] = tuple(list(config["patch_shape"]) +
-                                  [config["patch_depth"] + (config["prev_truth_size"] if config["prev_truth_index"] is not None else 0)])
+                                  [config["patch_depth"] + (
+                                      config["prev_truth_size"] if config["prev_truth_index"] is not None else 0)])
     config["truth_channel"] = config["nb_channels"]
 
-    config["batch_size"] = 128
-    config["patches_per_img_per_batch"] = 20
+    config["batch_size"] = 64
+    config["patches_per_img_per_batch"] = 3
     config["validation_batch_size"] = 256
     config["n_epochs"] = 300  # cutoff the training after this many epochs
-    config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
+    config[
+        "patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
     config["early_stop"] = 25  # training will be stopped after this many epochs without the validation loss improving
     config["initial_learning_rate"] = 5e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
     config["validation_split"] = 0.90  # portion of the data that will be used for training
 
-    config["categorical"] = True  # will make the target one_hot
+    config["categorical"] = False  # will make the target one_hot
     config["loss"] = 'binary_cross_entropy'  # or 'dice_coeeficient'
 
     config["augment"] = {
@@ -82,7 +84,7 @@ else:
     config["skip_blank_train"] = False  # if True, then patches without any target will be skipped
     config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
     config["drop_easy_patches_train"] = True
-    config["drop_easy_patches_val"] = True
+    config["drop_easy_patches_val"] = False
 
     config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
     config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
@@ -129,8 +131,8 @@ def main(overwrite=False):
         # instantiate new model
         model_func = getattr(fetal_net.model, config['model_name'])
         model = model_func(input_shape=config["input_shape"],
-                           initial_learning_rate=config["initial_learning_rate"],
-                           loss_function=config["loss"])
+                           initial_learning_rate=config["initial_learning_rate"])
+        # loss_function=config["loss"])
     model.summary()
 
     # get training and testing generators
