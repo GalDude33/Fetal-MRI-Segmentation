@@ -14,13 +14,17 @@ def vod_coefficient(y_true, y_pred, smooth=1.):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
-    union = intersection + K.sum((1-y_true_f * y_pred_f) * y_true_f) \
-                         + K.sum((1-y_true_f * y_pred_f) * y_pred_f)
+    union = intersection + K.sum((1 - y_true_f * y_pred_f) * y_true_f) \
+            + K.sum((1 - y_true_f * y_pred_f) * y_pred_f)
     return (intersection + smooth) / (union + smooth)
 
 
 def dice_coefficient_loss(y_true, y_pred):
     return -dice_coefficient(y_true, y_pred)
+
+
+def vod_coefficient_loss(y_true, y_pred):
+    return -vod_coefficient(y_true, y_pred)
 
 
 def weighted_dice_coefficient(y_true, y_pred, axis=(-3, -2, -1), smooth=0.00001):

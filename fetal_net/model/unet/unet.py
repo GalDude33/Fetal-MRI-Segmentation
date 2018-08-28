@@ -7,7 +7,8 @@ from keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNo
     Permute
 from keras.optimizers import Adam
 
-from ...metrics import dice_coefficient_loss, get_label_dice_coefficient_function, dice_coefficient
+from ...metrics import dice_coefficient_loss, get_label_dice_coefficient_function, dice_coefficient, vod_coefficient, \
+    vod_coefficient_loss
 
 K.set_image_data_format("channels_last")
 reload(K)
@@ -19,8 +20,8 @@ except ImportError:
 
 
 def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_rate=0.00001, deconvolution=False,
-                  depth=4, n_base_filters=32, include_label_wise_dice_coefficients=False, metrics=dice_coefficient,
-                  batch_normalization=False, activation_name="sigmoid"):
+                  depth=4, n_base_filters=32, include_label_wise_dice_coefficients=False,
+                  batch_normalization=False, activation_name="sigmoid", loss_function=dice_coefficient_loss):
     """
     Builds the 3D UNet Keras model.f
     :param metrics: List metrics to be calculated during model training (default is dice coefficient).
@@ -40,6 +41,16 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
     increases the amount memory required during training.
     :return: Untrained 3D UNet Model
     """
+    additional_metric = vod_coefficient
+    if isinstance(loss_function, str):
+        if loss_function == 'dice':
+            loss_function = dice_coefficient_loss
+        elif loss_function == 'vod':
+            loss_function = vod_coefficient_loss
+            additional_metric = dice_coefficient
+        else:
+            raise Exception('Unknown loss function {}, choose dice or vod'.format(loss_function))
+
     inputs = Input(input_shape)
     inputs_p = Permute((3, 1, 2))(inputs)
     current_layer = inputs_p
@@ -74,17 +85,16 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
     act = Permute((2, 3, 1))(act)
     model = Model(inputs=inputs, outputs=act)
 
-    if not isinstance(metrics, list):
-        metrics = [metrics, 'acc']
+    metrics = [additional_metric, 'acc']
 
-    if include_label_wise_dice_coefficients and n_labels > 1:
-        label_wise_dice_metrics = [get_label_dice_coefficient_function(index) for index in range(n_labels)]
-        if metrics:
-            metrics = metrics + label_wise_dice_metrics + ['acc']
-        else:
-            metrics = label_wise_dice_metrics
+    # if include_label_wise_dice_coefficients and n_labels > 1:
+    #     label_wise_dice_metrics = [get_label_dice_coefficient_function(index) for index in range(n_labels)]
+    #     if metrics:
+    #         metrics = metrics + label_wise_dice_metrics + ['acc']
+    #     else:
+    #         metrics = label_wise_dice_metrics
 
-    model.compile(optimizer=Adam(lr=initial_learning_rate), loss=dice_coefficient_loss, metrics=metrics)
+    model.compile(optimizer=Adam(lr=initial_learning_rate), loss=loss_function, metrics=metrics)
     return model
 
 
