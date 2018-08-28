@@ -66,9 +66,10 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                     [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
                      np.subtract(patch_shape, prediction_shape + (1,))],
                     mode='constant', constant_values=np.percentile(data[0], q=1))
+    pad_for_fit = [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
+                   np.maximum(np.subtract(patch_shape, data_0.shape), 0)]
     data_0 = np.pad(data_0,
-                    [(np.floor(_ / 2).astype(int), np.ceil(_ / 2).astype(int)) for _ in
-                     np.maximum(np.subtract(patch_shape, data_0.shape), 0)],
+                    [_ for _ in pad_for_fit],
                     'constant', constant_values=np.percentile(data_0, q=1))
 
     if truth_data is not None:
@@ -76,9 +77,7 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                          [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
                           np.subtract(patch_shape, prediction_shape + (1,))],
                          mode='constant', constant_values=0)
-        truth_0 = np.pad(truth_0,
-                         [(np.floor(_ / 2).astype(int), np.ceil(_ / 2).astype(int)) for _ in
-                          np.maximum(np.subtract(patch_shape, truth_0.shape), 0)],
+        truth_0 = np.pad(truth_0, [_ for _ in pad_for_fit],
                          'constant', constant_values=0)
 
         truth_patch_shape = list(patch_shape[:2]) + [prev_truth_size]
@@ -97,7 +96,7 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                             truth_0, prev_truth_index, truth_patch_shape)
     tb_iter = iter(ThreadedGenerator(b_iter, queue_maxsize=50))
 
-    data_shape = list(data_0.shape[-3:]) + [model.output_shape[-1]]
+    data_shape = list(data.shape[-3:] + np.sum(pad_for_fit, -1)) + [model.output_shape[-1]]
     predicted_output = np.zeros(data_shape)
     predicted_count = np.zeros(data_shape, dtype=np.int16)
     with tqdm(total=len(indices)) as pbar:
@@ -116,6 +115,19 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
     # ind_offset = np.subtract(patch_shape[-3:], prediction_shape + (1,)) // 2
     # indices = [np.add(ind, ind_offset) for ind in indices]
     assert np.all(predicted_count > 0), 'Found zeros in count'
+
+    if np.sum(pad_for_fit) > 0:
+        # must be a better way :\
+        x_pad, y_pad, z_pad = [[None if p2[0] == 0 else p2[0],
+                                None if p2[1] == 0 else -p2[1]] for p2 in pad_for_fit]
+        predicted_count = predicted_count[x_pad[0]: x_pad[1],
+                                          y_pad[0]: y_pad[1],
+                                          z_pad[0]: z_pad[1]]
+        predicted_output = predicted_output[x_pad[0]: x_pad[1],
+                                            y_pad[0]: y_pad[1],
+                                            z_pad[0]: z_pad[1]]
+
+    assert np.array_equal(predicted_count.shape[:-1], data[0].shape), 'prediction shape wrong'
     return predicted_output / predicted_count
     # return reconstruct_from_patches(predictions, patch_indices=indices, data_shape=data_shape)
 
@@ -232,7 +244,6 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
             image.to_filename(os.path.join(output_dir, "prediction_{0}.nii.gz".format(i + 1)))
     else:
         prediction_image.to_filename(os.path.join(output_dir, "prediction.nii.gz"))
-
 
 def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file, patch_shape,
                          output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0,
