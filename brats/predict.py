@@ -18,7 +18,8 @@ def main(config, split='test', overlap_factor=1):
                          output_dir=prediction_dir,
                          overlap_factor=overlap_factor,
                          patch_shape=config["patch_shape"]+[config["patch_depth"]],
-                         prev_truth_index=config["prev_truth_index"])
+                         prev_truth_index=config["prev_truth_index"],
+                         prev_truth_size=config["prev_truth_size"])
 
 
 if __name__ == "__main__":

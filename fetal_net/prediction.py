@@ -48,7 +48,7 @@ def batch_iterator(indices, batch_size, data_0, patch_shape, truth_0, prev_truth
 
 
 def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, batch_size=5, permute=False,
-                          truth_data=None, prev_truth_index=None):
+                          truth_data=None, prev_truth_index=None, prev_truth_size=None):
     """
     :param truth_data:
     :param permute:
@@ -72,7 +72,7 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                          [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
                           np.subtract(patch_shape, prediction_shape + (1,))],
                          mode='constant', constant_values=0)
-        truth_patch_shape = list(patch_shape[:2]) + [1]
+        truth_patch_shape = list(patch_shape[:2]) + [prev_truth_size]
     else:
         truth_0 = None
         truth_patch_shape = None
@@ -176,7 +176,7 @@ def multi_class_prediction(prediction, affine):
 
 def run_validation_case(data_index, output_dir, model, data_file, training_modalities, patch_shape,
                         output_label_map=False, threshold=0.5, labels=None, overlap_factor=0, permute=False,
-                        prev_truth_index=None):
+                        prev_truth_index=None, prev_truth_size=None):
     """
     Runs a test case and writes predicted images to file.
     :param data_index: Index from of the list of test cases to get an image prediction from.
@@ -212,7 +212,8 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         prediction = \
             patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor,
                                   patch_shape=patch_shape, permute=permute,
-                                  truth_data=test_truth_data, prev_truth_index=prev_truth_index)[np.newaxis]
+                                  truth_data=test_truth_data, prev_truth_index=prev_truth_index,
+                                  prev_truth_size=prev_truth_size)[np.newaxis]
     if prediction.shape[-1] > 1:
         prediction = prediction[..., 1]
     prediction = prediction.squeeze()
@@ -226,7 +227,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
 
 def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file, patch_shape,
                          output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0,
-                         permute=False, prev_truth_index=None):
+                         permute=False, prev_truth_index=None, prev_truth_size=None):
     validation_indices = pickle_load(validation_keys_file)
     model = load_old_model(get_last_model_path(model_file))
     data_file = tables.open_file(hdf5_file, "r")
@@ -239,7 +240,7 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
                             training_modalities=training_modalities, output_label_map=output_label_map, labels=labels,
                             threshold=threshold, overlap_factor=overlap_factor, permute=permute,
                             patch_shape=patch_shape,
-                            prev_truth_index=prev_truth_index)
+                            prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size)
     data_file.close()
 
 
