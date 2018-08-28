@@ -1,17 +1,11 @@
 from functools import partial
 
-from keras.layers import Input, Add, UpSampling2D, Activation, SpatialDropout2D, Conv2D, Permute  # , LeakyReLU
+from keras.layers import Input, Add, UpSampling2D, Activation, SpatialDropout2D, Conv2D, Permute, LeakyReLU
 from keras.engine import Model
 from keras.optimizers import Adam
 
 from .unet import create_convolution_block, concatenate
 from ...metrics import weighted_dice_coefficient_loss, dice_coefficient_loss
-
-import keras.backend as K
-
-
-def LeakyReLU(alpha=0.3):
-    return Activation(lambda x: K.maximum(x, alpha * x))
 
 
 create_convolution_block = partial(create_convolution_block, activation=LeakyReLU, instance_normalization=True)
