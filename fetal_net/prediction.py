@@ -67,8 +67,8 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                      np.subtract(patch_shape, prediction_shape + (1,))],
                     mode='constant', constant_values=np.percentile(data[0], q=1))
     data_0 = np.pad(data_0,
-                    [(_, _) for _ in
-                     np.ceil(np.maximum(np.subtract(patch_shape, data_0.shape) + 1, 0) / 2).astype(int)],
+                    [(np.floor(_ / 2).astype(int), np.ceil(_ / 2).astype(int)) for _ in
+                     np.maximum(np.subtract(patch_shape, data_0.shape), 0)],
                     'constant', constant_values=np.percentile(data_0, q=1))
 
     if truth_data is not None:
@@ -77,8 +77,8 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                           np.subtract(patch_shape, prediction_shape + (1,))],
                          mode='constant', constant_values=0)
         truth_0 = np.pad(truth_0,
-                         [(_, _) for _ in
-                          np.ceil(np.maximum(np.subtract(patch_shape, truth_0.shape) + 1, 0) / 2).astype(int)],
+                         [(np.floor(_ / 2).astype(int), np.ceil(_ / 2).astype(int)) for _ in
+                          np.maximum(np.subtract(patch_shape, truth_0.shape), 0)],
                          'constant', constant_values=0)
 
         truth_patch_shape = list(patch_shape[:2]) + [prev_truth_size]
