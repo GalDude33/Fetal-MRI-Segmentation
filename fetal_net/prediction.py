@@ -97,7 +97,7 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                             truth_0, prev_truth_index, truth_patch_shape)
     tb_iter = iter(ThreadedGenerator(b_iter, queue_maxsize=50))
 
-    data_shape = list(data.shape[-3:]) + [model.output_shape[-1]]
+    data_shape = list(data_0.shape[-3:]) + [model.output_shape[-1]]
     predicted_output = np.zeros(data_shape)
     predicted_count = np.zeros(data_shape, dtype=np.int16)
     with tqdm(total=len(indices)) as pbar:
