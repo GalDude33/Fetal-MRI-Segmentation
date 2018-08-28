@@ -66,12 +66,21 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                     [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
                      np.subtract(patch_shape, prediction_shape + (1,))],
                     mode='constant', constant_values=np.percentile(data[0], q=1))
+    data_0 = np.pad(data_0,
+                    [(_, _) for _ in
+                     np.ceil(np.maximum(np.subtract(patch_shape, data_0.shape) + 1, 0) / 2).astype(int)],
+                    'constant', constant_values=np.percentile(data_0, q=1))
 
     if truth_data is not None:
         truth_0 = np.pad(truth_data[0],
                          [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
                           np.subtract(patch_shape, prediction_shape + (1,))],
                          mode='constant', constant_values=0)
+        truth_0 = np.pad(truth_0,
+                         [(_, _) for _ in
+                          np.ceil(np.maximum(np.subtract(patch_shape, truth_0.shape) + 1, 0) / 2).astype(int)],
+                         'constant', constant_values=0)
+
         truth_patch_shape = list(patch_shape[:2]) + [prev_truth_size]
     else:
         truth_0 = None
@@ -100,8 +109,8 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                 # predictions.append(predicted_patch)
                 x, y, z = predicted_index
                 x_len, y_len, z_len = predicted_patch.shape[:-1]
-                predicted_output[x:x+x_len, y:y+y_len, z:z+z_len, :] += predicted_patch
-                predicted_count[x:x+x_len, y:y+y_len, z:z+z_len] += 1
+                predicted_output[x:x + x_len, y:y + y_len, z:z + z_len, :] += predicted_patch
+                predicted_count[x:x + x_len, y:y + y_len, z:z + z_len] += 1
             pbar.update(batch_size)
 
     # ind_offset = np.subtract(patch_shape[-3:], prediction_shape + (1,)) // 2
