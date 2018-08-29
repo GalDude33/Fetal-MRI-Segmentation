@@ -43,11 +43,11 @@ def main(input_mat_path, output_mat_path, config, overlap_factor, model_path, pr
         prediction = prediction[..., 1]
     prediction = prediction.squeeze()
     mat['masks'][0, 9] = \
-        process_pred(prediction, gaussian_std=0, threshold=0.1)  # .astype(np.uint8)
+        process_pred(prediction, gaussian_std=0, threshold=0.2)  # .astype(np.uint8)
     mat['masks'][0, 8] = \
         process_pred(prediction, gaussian_std=1, threshold=0.5)  # .astype(np.uint8)
     mat['masks'][0, 7] = \
-        process_pred(prediction, gaussian_std=0.5, threshold=0.3)  # .astype(np.uint8)
+        process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
     print('Saving mat to {}'.format(output_mat_path))
     savemat(output_mat_path, mat)
     print('Finished.')
