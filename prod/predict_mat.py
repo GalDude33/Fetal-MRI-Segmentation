@@ -23,6 +23,7 @@ def main(input_mat_path, output_mat_path, config, overlap_factor, model_path, pr
     data = mat['volume'].astype(np.float)
 
     if preprocess_method is not None:
+        print('Applying preprocess by {}...'.format(preprocess_method))
         if preprocess_method == 'window_1_99':
             data = window_intensities_data(data)
         else:
