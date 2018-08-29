@@ -36,15 +36,16 @@ else:
     Path(config["split_dir"]).mkdir(parents=True, exist_ok=True)
 
     # config["image_shape"] = (256, 256, 108)  # This determines what shape the images will be cropped/resampled to.
-    config["patch_shape"] = (128, 128)  # switch to None to train on the whole image
-    config["patch_depth"] = 5
-    config["truth_index"] = 2
-    config["prev_truth_index"] = 1  # None for regular training
-    config["prev_truth_size"] = 1  # None for regular training
+    config["patch_shape"] = (32, 32)  # switch to None to train on the whole image
+    config["patch_depth"] = 32
+    config["truth_index"] = 0
+    config["truth_size"] = 32
+    config["prev_truth_index"] = None  # None for regular training
+    config["prev_truth_size"] = None  # None for regular training
     config["truth_downsample"] = None  # 96
     config["truth_crop"] = None  # if true will crop sample else resize
 
-    config["model_name"] = 'isensee2017_model'  # 'unet_model_2d'
+    config["model_name"] = 'unet_model_3d' # 'isensee2017_model_3d'  # 'isensee2017_model'  # 'unet_model_2d'
 
     config["labels"] = (1,)  # the label numbers on the input image
     config["n_labels"] = len(config["labels"])
@@ -59,24 +60,24 @@ else:
 
     config["batch_size"] = 1
     config["patches_per_img_per_batch"] = 1
-    config["validation_batch_size"] = 2
+    config["validation_batch_size"] = 1
     config["n_epochs"] = 300  # cutoff the training after this many epochs
-    config[
-        "patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
+    config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
     config["early_stop"] = 25  # training will be stopped after this many epochs without the validation loss improving
     config["initial_learning_rate"] = 5e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
     config["validation_split"] = 0.90  # portion of the data that will be used for training
 
     config["categorical"] = False  # will make the target one_hot
+    config["3D"] = True  # will make the target one_hot
     config["loss"] = 'dice'  # or 'dice_coeeficient'
 
     config["augment"] = {
-        "flip": [0.5, 0.5, 0],  # augments the data by randomly flipping an axis during
+        "flip": [0.5, 0.5, 0.5],  # augments the data by randomly flipping an axis during
         "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
         "translate": (10, 10, 5),  #
         "scale": 0.10,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
-        "rotate": (3, 3, 7),  # std of angle rotation, switch to None if you want no rotation
+        "rotate": (7, 7, 7),  # std of angle rotation, switch to None if you want no rotation
     }
     config["augment"] = config["augment"] if any(config["augment"].values()) else None
     config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
@@ -100,8 +101,9 @@ else:
         1: 'all',
         2: 'each'
     }[1]  # Normalize by all or each data mean and std
-    assert not all([config['normalize_all_data'], config['normalize_each_data']]), 'Choose only one normalization ' \
-                                                                                     'method '
+
+    if config['3D']:
+        config["input_shape"] = [1] + list(config["input_shape"])
 
     with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
         json.dump(config, f, indent=2)
@@ -144,8 +146,8 @@ def main(overwrite=False):
         # instantiate new model
         model_func = getattr(fetal_net.model, config['model_name'])
         model = model_func(input_shape=config["input_shape"],
-                           initial_learning_rate=config["initial_learning_rate"],
-                           loss_function=config["loss"])
+                           initial_learning_rate=config["initial_learning_rate"])
+        # loss_function=config["loss"])
     model.summary()
 
     # get training and testing generators
@@ -165,12 +167,13 @@ def main(overwrite=False):
         skip_blank_train=config["skip_blank_train"],
         skip_blank_val=config["skip_blank_val"],
         truth_index=config["truth_index"],
+        truth_size=config["truth_size"],
         prev_truth_index=config["prev_truth_index"],
         prev_truth_size=config["prev_truth_size"],
         truth_downsample=config["truth_downsample"],
         truth_crop=config["truth_crop"],
         patches_per_img_per_batch=config["patches_per_img_per_batch"],
-        categorical=config["categorical"],
+        categorical=config["categorical"], is3d=config["3D"],
         drop_easy_patches_train=config["drop_easy_patches_train"],
         drop_easy_patches_val=config["drop_easy_patches_val"])
 

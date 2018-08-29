@@ -31,22 +31,24 @@ def pad_samples(data_file, patch_shape, truth_downsample):
          for truth in data_file.root.truth]
 
     data_file.root.data = \
-        [np.pad(data, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape)+1, 0)/2).astype(int)], 'constant', constant_values=data_min)
+        [np.pad(data,
+                [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape) + 1, 0) / 2).astype(int)],
+                'constant', constant_values=data_min)
          for data, data_min in zip(data_file.root.data, data_file.root.data_min)]
     data_file.root.truth = \
-        [np.pad(truth, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape)+1, 0)/2).astype(int)], 'constant', constant_values=0)
+        [np.pad(truth,
+                [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
+                'constant', constant_values=0)
          for truth in data_file.root.truth]
-
-
 
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
                                            test_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
-                                           truth_index=-1, truth_downsample=None, truth_crop=True,
-                                           patches_per_img_per_batch=1, categorical=True, prev_truth_index=None,
-                                           prev_truth_size=None,
+                                           truth_index=-1, truth_size=1, truth_downsample=None, truth_crop=True,
+                                           patches_per_img_per_batch=1, categorical=True, is3d=False,
+                                           prev_truth_index=None, prev_truth_size=None,
                                            drop_easy_patches_train=False, drop_easy_patches_val=False):
     """
     Creates the training and validation generators that can be used when training the model.
@@ -94,23 +96,24 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                                              validation_file=validation_keys_file,
                                                              test_file=test_keys_file)
 
-    training_generator = data_generator(data_file, training_list, batch_size=batch_size, n_labels=n_labels,
-                                        labels=labels, augment=augment, patch_shape=patch_shape,
-                                        skip_blank=skip_blank_train, truth_index=truth_index,
-                                        prev_truth_index=prev_truth_index,
-                                        prev_truth_size=prev_truth_size,
-                                        truth_downsample=truth_downsample, truth_crop=truth_crop,
-                                        categorical=categorical, drop_easy_patches=drop_easy_patches_train)
-    validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
-                                          n_labels=n_labels, labels=labels, patch_shape=patch_shape,
-                                          skip_blank=skip_blank_val,
-                                          truth_index=truth_index,
-                                          prev_truth_index=prev_truth_index,
-                                          prev_truth_size=prev_truth_size,
-                                          truth_downsample=truth_downsample,
-                                          truth_crop=truth_crop,
-                                          categorical=categorical,
-                                          drop_easy_patches=drop_easy_patches_val)
+    training_generator = \
+        data_generator(data_file, training_list, batch_size=batch_size, augment=augment,
+                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                       skip_blank=skip_blank_train,
+                       truth_index=truth_index, truth_size=truth_size,
+                       truth_downsample=truth_downsample, truth_crop=truth_crop,
+                       categorical=categorical, is3d=is3d,
+                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                       drop_easy_patches=drop_easy_patches_train)
+    validation_generator = \
+        data_generator(data_file, validation_list, batch_size=validation_batch_size,
+                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                       skip_blank=skip_blank_val,
+                       truth_index=truth_index, truth_size=truth_size,
+                       truth_downsample=truth_downsample, truth_crop=truth_crop,
+                       categorical=categorical, is3d=is3d,
+                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                       drop_easy_patches=drop_easy_patches_val)
 
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
@@ -179,8 +182,9 @@ def list_generator(index_list):
 
 
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
-                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True,
-                   categorical=True, prev_truth_index=None, prev_truth_size=None, drop_easy_patches=False):
+                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_size=1, truth_downsample=None,
+                   truth_crop=True, categorical=True, prev_truth_index=None, prev_truth_size=None,
+                   drop_easy_patches=False, is3d=False):
     index_generator = random_list_generator(index_list) if shuffle_index_list else list_generator(index_list)
     while True:
         x_list = list()
@@ -190,13 +194,13 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
             index = next(index_generator)
             add_data(x_list, y_list, data_file, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
-                     truth_index=truth_index, truth_downsample=truth_downsample,
+                     truth_index=truth_index, truth_size=truth_size, truth_downsample=truth_downsample,
                      truth_crop=truth_crop, prev_truth_index=prev_truth_index,
                      prev_truth_size=prev_truth_size, drop_easy_patches=drop_easy_patches)
-        yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
+        yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical, is3d=is3d)
 
 
-def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_shape=None, skip_blank=True,
+def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None, skip_blank=True,
              truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None,
              drop_easy_patches=False):
     """
@@ -222,7 +226,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, augment=None, patch_
         data_range = [(start, start + size) for start, size in zip(patch_corner, patch_shape)]
 
         truth_range = data_range[:2] + [(patch_corner[2] + truth_index,
-                                         patch_corner[2] + truth_index + 1)]
+                                         patch_corner[2] + truth_index + truth_size)]
 
         if prev_truth_index is not None:
             prev_truth_range = data_range[:2] + [(patch_corner[2] + prev_truth_index,
@@ -303,7 +307,7 @@ def get_data_from_file(data_file, index, patch_shape=None):
     return x, y
 
 
-def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True):
+def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True, is3d=False):
     x = np.asarray(x_list)
     y = np.asarray(y_list)
     # if n_labels == 1:
@@ -312,6 +316,8 @@ def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True):
     #     y = get_multi_class_labels(y, n_labels=n_labels, labels=labels)
     if categorical:
         y = to_categorical(y, 2)
+    if is3d:
+        x = np.expand_dims(x, 0)
     return x, y
 
 
