@@ -83,3 +83,10 @@ def normalize_data_storage(data_storage):
     return data_storage, mean, std
 
 
+def normalize_data_storage_each(data_storage):
+    for index in range(data_storage.shape[0]):
+        data = data_storage[index]
+        mean = data.mean(axis=(-1, -2, -3))
+        std = data.std(axis=(-1, -2, -3))
+        data_storage[index] = normalize_data(data, mean, std)
+    return data_storage, None, None

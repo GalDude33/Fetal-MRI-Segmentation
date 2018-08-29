@@ -95,6 +95,14 @@ else:
 
     config['scans_dir'] = "../../Datasets/Cutted_to_fetus"
 
+    config['normalization'] = {
+        0: False,
+        1: 'all',
+        2: 'each'
+    }[1]  # Normalize by all or each data mean and std
+    assert not all([config['normalize_all_data'], config['normalize_each_data']]), 'Choose only one normalization ' \
+                                                                                     'method '
+
     with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
         json.dump(config, f, indent=2)
 
@@ -121,7 +129,8 @@ def main(overwrite=False):
     if overwrite or not os.path.exists(config["data_file"]):
         training_files, subject_ids = fetch_training_data_files(return_subject_ids=True)
 
-        _, (mean, std) = write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids)
+        _, (mean, std) = write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids,
+                                            normalize=config['normalization'])
         with open(os.path.join(config["base_dir"], 'norm_params.json'), mode='w') as f:
             json.dump({'mean': mean, 'std': std}, f)
 
