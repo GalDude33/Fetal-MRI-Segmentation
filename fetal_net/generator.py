@@ -200,7 +200,8 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
         yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical, is3d=is3d)
 
 
-def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None, skip_blank=True,
+def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
+             skip_blank=True,
              truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None,
              drop_easy_patches=False):
     """
@@ -243,8 +244,10 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
                                                data_range=data_range, truth_range=truth_range,
                                                prev_truth_range=prev_truth_range)
     else:
-        data, truth, prev_truth = extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index,
-                                                prev_truth_size)
+        data, truth, prev_truth = \
+            extract_patch(data, patch_corner, patch_shape, truth,
+                          truth_index=truth_index, truth_size=truth_size,
+                          prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size)
 
     if prev_truth is not None:
         data = np.concatenate([data, prev_truth], axis=-1)
@@ -270,11 +273,11 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
         y_list.append(truth)
 
 
-def extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index=None, prev_truth_size=1):
+def extract_patch(data, patch_corner, patch_shape, truth, truth_index, truth_size, prev_truth_index=None,
+                  prev_truth_size=1):
     data = get_patch_from_3d_data(data, patch_shape, patch_corner)
-    truth_shape = patch_shape[:-1] + (1,)
     real_truth = get_patch_from_3d_data(truth,
-                                        truth_shape,
+                                        patch_shape[:-1] + (truth_size,),
                                         patch_corner + np.array((0, 0, truth_index)))
     if prev_truth_index is not None:
         prev_truth = get_patch_from_3d_data(truth,
