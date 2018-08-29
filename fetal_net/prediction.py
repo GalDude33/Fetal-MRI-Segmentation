@@ -47,8 +47,8 @@ def batch_iterator(indices, batch_size, data_0, patch_shape, truth_0, prev_truth
     print('Finished! {}-{}'.format(i, len(indices)))
 
 
-def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, batch_size=5, permute=False,
-                          truth_data=None, prev_truth_index=None, prev_truth_size=None):
+def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, batch_size=5,
+                          permute=False, truth_data=None, prev_truth_index=None, prev_truth_size=None):
     """
     :param truth_data:
     :param permute:
