@@ -80,6 +80,6 @@ def normalize_data_storage(data_storage):
     std = np.asarray(stds).mean(axis=0)
     for index in range(data_storage.shape[0]):
         data_storage[index] = normalize_data(data_storage[index], mean, std)
-    return data_storage
+    return data_storage, mean, std
 
 

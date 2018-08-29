@@ -53,9 +53,11 @@ def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
     if subject_ids:
         hdf5_file.create_array(hdf5_file.root, 'subject_ids', obj=subject_ids)
     if normalize:
-        normalize_data_storage(data_storage)
+        _, mean, std = normalize_data_storage(data_storage)
+    else:
+        mean, std = None, None
     hdf5_file.close()
-    return out_file
+    return out_file, (mean, std)
 
 
 def open_data_file(filename, readwrite="r"):

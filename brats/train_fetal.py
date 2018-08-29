@@ -41,10 +41,10 @@ else:
     config["truth_index"] = 2
     config["prev_truth_index"] = 1  # None for regular training
     config["prev_truth_size"] = 1  # None for regular training
-    config["truth_downsample"] = None  #96
+    config["truth_downsample"] = None  # 96
     config["truth_crop"] = None  # if true will crop sample else resize
 
-    config["model_name"] = 'isensee2017_model' #'unet_model_2d'
+    config["model_name"] = 'isensee2017_model'  # 'unet_model_2d'
 
     config["labels"] = (1,)  # the label numbers on the input image
     config["n_labels"] = len(config["labels"])
@@ -61,7 +61,8 @@ else:
     config["patches_per_img_per_batch"] = 1
     config["validation_batch_size"] = 2
     config["n_epochs"] = 300  # cutoff the training after this many epochs
-    config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
+    config[
+        "patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
     config["early_stop"] = 25  # training will be stopped after this many epochs without the validation loss improving
     config["initial_learning_rate"] = 5e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
@@ -120,7 +121,10 @@ def main(overwrite=False):
     if overwrite or not os.path.exists(config["data_file"]):
         training_files, subject_ids = fetch_training_data_files(return_subject_ids=True)
 
-        write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids)
+        _, (mean, std) = write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids)
+        with open(os.path.join(config["base_dir"], 'norm_params.json'), mode='w') as f:
+            json.dump({'mean': mean, 'std': std}, f)
+
     data_file_opened = open_data_file(config["data_file"])
 
     if not overwrite and len(glob.glob(config["model_file"] + '*.h5')) > 0:
