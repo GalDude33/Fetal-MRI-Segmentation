@@ -11,7 +11,8 @@ import SimpleITK as sitk
 import numpy as np
 from nipype.interfaces.ants import N4BiasFieldCorrection
 
-from brats.train_fetal import config
+
+# from brats.train_fetal import config
 
 
 def append_basename(in_file, append):
