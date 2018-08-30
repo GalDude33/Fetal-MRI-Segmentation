@@ -12,9 +12,9 @@ from_metric = 'acc'
 to_metric = 'binary_accuracy'
 
 model: Model = load_old_model(opts.model_path)
-model = model.compile(optimizer=model.optimizer,
-                      loss=model.loss,
-                      metrics=[to_metric if _ == from_metric else _
-                               for _ in model.metrics])
+model.compile(optimizer=model.optimizer,
+              loss=model.loss,
+              metrics=[to_metric if _ == from_metric else _
+                       for _ in model.metrics])
 
 model.save(opts.model_path)
