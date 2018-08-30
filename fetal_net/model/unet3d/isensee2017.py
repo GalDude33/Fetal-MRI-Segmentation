@@ -76,7 +76,8 @@ def isensee2017_model_3d(input_shape=(1, 128, 128, 128), n_base_filters=16, dept
     activation_block = Activation(activation_name)(output_layer)
 
     model = Model(inputs=inputs, outputs=activation_block)
-    model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function, metrics=[vod_coefficient, 'acc'])
+    model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function,
+                  metrics=[vod_coefficient, 'binary_accuracy'])
     return model
 
 

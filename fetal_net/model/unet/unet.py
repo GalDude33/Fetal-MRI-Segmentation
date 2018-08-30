@@ -85,7 +85,7 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
     act = Permute((2, 3, 1))(act)
     model = Model(inputs=inputs, outputs=act)
 
-    metrics = [additional_metric, 'acc']
+    metrics = [additional_metric, 'binary_accuracy']
 
     # if include_label_wise_dice_coefficients and n_labels > 1:
     #     label_wise_dice_metrics = [get_label_dice_coefficient_function(index) for index in range(n_labels)]
