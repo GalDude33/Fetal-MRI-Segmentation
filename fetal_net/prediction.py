@@ -58,13 +58,18 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
     :param data:
     :return:
     """
-    prediction_shape = model.output_shape[-3:-1]  # patch_shape[-3:-1] #[64,64]#
-    min_overlap = np.subtract(patch_shape, prediction_shape + (1,))
+    is3d = np.sum(np.array(model.output_shape[1:]) > 1) > 2
+
+    if is3d:
+        prediction_shape = model.output_shape[-3:]
+    else:
+        prediction_shape = model.output_shape[-3:-1] + (1,)  # patch_shape[-3:-1] #[64,64]#
+    min_overlap = np.subtract(patch_shape, prediction_shape)
     max_overlap = np.subtract(patch_shape, (1, 1, 1))
     overlap = min_overlap + (overlap_factor * (max_overlap - min_overlap)).astype(np.int)
     data_0 = np.pad(data[0],
                     [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
-                     np.subtract(patch_shape, prediction_shape + (1,))],
+                     np.subtract(patch_shape, prediction_shape)],
                     mode='constant', constant_values=np.percentile(data[0], q=1))
     pad_for_fit = [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
                    np.maximum(np.subtract(patch_shape, data_0.shape), 0)]
@@ -75,7 +80,7 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
     if truth_data is not None:
         truth_0 = np.pad(truth_data[0],
                          [(np.ceil(_ / 2).astype(int), np.floor(_ / 2).astype(int)) for _ in
-                          np.subtract(patch_shape, prediction_shape + (1,))],
+                          np.subtract(patch_shape, prediction_shape)],
                          mode='constant', constant_values=0)
         truth_0 = np.pad(truth_0, [_ for _ in pad_for_fit],
                          'constant', constant_values=0)
@@ -89,20 +94,28 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                                             np.subtract(data_0.shape, patch_shape),
                                             np.subtract(patch_shape, overlap))
 
-    # assert len(indices) * np.prod(prediction_shape[:-1]) == np.prod(data.shape), \
-    #     'no total coverage for prediction, something wrong with the indexing'
-
     b_iter = batch_iterator(indices, batch_size, data_0, patch_shape,
                             truth_0, prev_truth_index, truth_patch_shape)
     tb_iter = iter(ThreadedGenerator(b_iter, queue_maxsize=50))
 
-    data_shape = list(data.shape[-3:] + np.sum(pad_for_fit, -1)) + [model.output_shape[-1]]
+    data_shape = list(data.shape[-3:] + np.sum(pad_for_fit, -1))
+    if is3d:
+        data_shape += [model.output_shape[1]]
+    else:
+        data_shape += [model.output_shape[-1]]
     predicted_output = np.zeros(data_shape)
     predicted_count = np.zeros(data_shape, dtype=np.int16)
     with tqdm(total=len(indices)) as pbar:
         for [curr_batch, batch_indices] in tb_iter:
-            prediction = predict(model, np.asarray(curr_batch), permute=permute)
-            prediction = np.expand_dims(prediction, -2)
+            curr_batch = np.asarray(curr_batch)
+            if is3d:
+                curr_batch = np.expand_dims(curr_batch, 1)
+            prediction = predict(model, curr_batch, permute=permute)
+
+            if is3d:
+                prediction = prediction.transpose([0, 2, 3, 4, 1])
+            else:
+                prediction = np.expand_dims(prediction, -2)
 
             for predicted_patch, predicted_index in zip(prediction, batch_indices):
                 # predictions.append(predicted_patch)
@@ -112,8 +125,6 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
                 predicted_count[x:x + x_len, y:y + y_len, z:z + z_len] += 1
             pbar.update(batch_size)
 
-    # ind_offset = np.subtract(patch_shape[-3:], prediction_shape + (1,)) // 2
-    # indices = [np.add(ind, ind_offset) for ind in indices]
     assert np.all(predicted_count > 0), 'Found zeros in count'
 
     if np.sum(pad_for_fit) > 0:

@@ -321,6 +321,7 @@ def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True, is3d
         y = to_categorical(y, 2)
     if is3d:
         x = np.expand_dims(x, 1)
+        y = np.expand_dims(y, 1)
     return x, y
 
 
