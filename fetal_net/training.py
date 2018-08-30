@@ -24,7 +24,7 @@ def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0
                   early_stopping_patience=None):
     callbacks = list()
     callbacks.append(ModelCheckpoint(model_file + '-epoch{epoch:02d}-loss{val_loss:.3f}-acc{val_acc:.3f}.h5',
-                                     save_best_only=True, verbose=verbosity, monitor='val_acc'))
+                                     save_best_only=True, verbose=verbosity, monitor='val_loss'))
     callbacks.append(CSVLogger(logging_file, append=True))
     if learning_rate_epochs:
         callbacks.append(LearningRateScheduler(partial(step_decay, initial_lrate=initial_learning_rate,
