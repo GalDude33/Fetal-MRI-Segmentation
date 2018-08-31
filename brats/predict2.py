@@ -7,6 +7,7 @@ import numpy as np
 import nibabel as nib
 
 from brats.utils import get_last_model_path
+from fetal_net.normalize import normalize_data
 from fetal_net.prediction import run_validation_cases, patch_wise_prediction
 import argparse
 
@@ -14,11 +15,10 @@ from fetal_net.training import load_old_model
 from fetal_net.utils.cut_relevant_areas import find_bounding_box, cut_bounding_box, check_bounding_box
 
 
-def main(config, split='test', overlap_factor=1):
+def main(pred_dir, config, split='test', overlap_factor=1):
     padding = [16, 16, 8]
-    prediction_dir = os.path.abspath(os.path.join(config['base_dir'], 'predictions', split))
     prediction2_dir = os.path.abspath(os.path.join(config['base_dir'], 'predictions2', split))
-    for sample_folder in glob(os.path.join(prediction_dir, '*')):
+    for sample_folder in glob(os.path.join(pred_dir, split, '*')):
         volume_path = os.path.join(sample_folder, 'volume.nii')
         mask_path = os.path.join(sample_folder, 'prediction.nii')
 
@@ -38,6 +38,11 @@ def main(config, split='test', overlap_factor=1):
         volume = cut_bounding_box(volume, bbox_start, bbox_end).get_data()
 
         model = load_old_model(get_last_model_path(config["model_file"]))
+
+        with open(os.path.join(opts.config_dir, 'norm_params.json'), 'r') as f:
+            norm_params = json.load(f)
+        if norm_params is not None and any(norm_params.values()):
+            volume = normalize_data(volume, mean=norm_params['mean'], std=norm_params['std'])
         prediction = patch_wise_prediction(
             model=model, data=volume,
             patch_shape=config["patch_shape"] + [config["patch_depth"]],
@@ -51,6 +56,8 @@ def main(config, split='test', overlap_factor=1):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--pred_dir", help="specifies config dir path",
+                        type=str, required=True)
     parser.add_argument("--config_dir", help="specifies config dir path",
                         type=str, required=True)
     parser.add_argument("--split", help="What split to predict on? (test/val)",
