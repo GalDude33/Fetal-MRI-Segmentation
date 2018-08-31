@@ -37,7 +37,7 @@ def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0
     return callbacks
 
 
-def load_old_model(model_file):
+def load_old_model(model_file, verbose=True):
     print("Loading pre-trained model")
     custom_objects = {'dice_coefficient_loss': dice_coefficient_loss, 'dice_coefficient': dice_coefficient,
                       'dice_coef': dice_coef, 'dice_coef_loss': dice_coef_loss,
@@ -51,6 +51,8 @@ def load_old_model(model_file):
     except ImportError:
         pass
     try:
+        if verbose:
+            print('Loading model from {}...'.format(model_file))
         return load_model(model_file, custom_objects=custom_objects)
     except ValueError as error:
         if 'InstanceNormalization' in str(error):
