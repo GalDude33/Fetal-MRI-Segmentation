@@ -69,4 +69,4 @@ if __name__ == "__main__":
     with open(os.path.join(opts.config_dir, 'config.json')) as f:
         config = json.load(f)
 
-    main(config, opts.split, opts.overlap_factor)
+    main(opts.pred_dir, config, opts.split, opts.overlap_factor)
