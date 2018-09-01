@@ -32,14 +32,8 @@ def secondary_prediction(mask, vol, config2, model2_path=None,
            bbox_start[1]:bbox_end[1],
            bbox_start[2]:bbox_end[2]
            ]
-    if preprocess_method2 is not None:
-        print('Applying preprocess by {}...'.format(preprocess_method2))
-        if preprocess_method2 == 'window_1_99':
-            data = window_intensities_data(data)
-        else:
-            raise Exception('Unknown preprocess: {}'.format(preprocess_method2))
-    if norm_params2 is not None and any(norm_params2.values()):
-        data = normalize_data(data, mean=norm_params2['mean'], std=norm_params2['std'])
+
+    data = preproc_and_norm(data, preprocess_method2, norm_params2)
 
     prediction = \
         patch_wise_prediction(model=model2,
@@ -52,6 +46,19 @@ def secondary_prediction(mask, vol, config2, model2_path=None,
     return prediction
 
 
+def preproc_and_norm(data, preprocess_method, norm_params):
+    if preprocess_method is not None:
+        print('Applying preprocess by {}...'.format(preprocess_method))
+        if preprocess_method == 'window_1_99':
+            data = window_intensities_data(data)
+        else:
+            raise Exception('Unknown preprocess: {}'.format(preprocess_method))
+
+    if norm_params is not None and any(norm_params.values()):
+        data = normalize_data(data, mean=norm_params['mean'], std=norm_params['std'])
+    return data
+
+
 def main(input_mat_path, output_mat_path, overlap_factor,
          config, model_path, preprocess_method=None, norm_params=None,
          config2=None, model2_path=None, preprocess_method2=None, norm_params2=None):
@@ -62,15 +69,7 @@ def main(input_mat_path, output_mat_path, overlap_factor,
     print('Predicting mask...')
     data = mat['volume'].astype(np.float)
 
-    if preprocess_method is not None:
-        print('Applying preprocess by {}...'.format(preprocess_method))
-        if preprocess_method == 'window_1_99':
-            data = window_intensities_data(data)
-        else:
-            raise Exception('Unknown preprocess: {}'.format(preprocess_method))
-
-    if norm_params is not None and any(norm_params.values()):
-        data = normalize_data(data, mean=norm_params['mean'], std=norm_params['std'])
+    data = preproc_and_norm(data, preprocess_method, norm_params)
 
     prediction = \
         patch_wise_prediction(model=model,
@@ -115,16 +114,20 @@ def get_params(config_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_dir", help="specifies config dir path",
-                        type=str, required=True)
-    parser.add_argument("--preprocess", help="what preprocess to do",
-                        type=str, default=None)
     parser.add_argument("--input_mat", help="specifies mat file dir path",
                         type=str, required=True)
     parser.add_argument("--output_mat", help="specifies mat file dir path",
                         type=str, required=True)
     parser.add_argument("--overlap_factor", help="specifies overlap between prediction patches",
                         type=float, default=0.9)
+
+    # Params for primary prediction
+    parser.add_argument("--config_dir", help="specifies config dir path",
+                        type=str, required=True)
+    parser.add_argument("--preprocess", help="what preprocess to do",
+                        type=str, required=False, default=None)
+
+    # Params for secondary prediction
     parser.add_argument("--config2_dir", help="specifies config dir path",
                         type=str, required=False, default=None)
     parser.add_argument("--preprocess2", help="what preprocess to do",
