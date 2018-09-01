@@ -24,6 +24,9 @@ def main(pred_dir, config, split='test', overlap_factor=1, preprocess_method=Non
     padding = [16, 16, 8]
     prediction2_dir = os.path.abspath(os.path.join(config['base_dir'], 'predictions2', split))
     model = load_old_model(get_last_model_path(config["model_file"]))
+    with open(os.path.join(opts.config_dir, 'norm_params.json'), 'r') as f:
+        norm_params = json.load(f)
+
     for sample_folder in glob(os.path.join(pred_dir, split, '*')):
         mask_path = os.path.join(sample_folder, 'prediction.nii.gz')
         truth_path = os.path.join(sample_folder, 'truth.nii.gz')
@@ -44,9 +47,9 @@ def main(pred_dir, config, split='test', overlap_factor=1, preprocess_method=Non
             bbox_end = np.minimum(bbox_end + padding, mask.shape)
         print("BBox: {}-{}".format(bbox_start, bbox_end))
 
-        volume = nib.load(os.path.join(original_data_folder, subject_id, 'volume.nii')).get_data()
+        volume = nib.load(os.path.join(original_data_folder, subject_id, 'volume.nii'))
         orig_volume_shape = np.array(volume.get_data().shape)
-        volume = cut_bounding_box(volume, bbox_start, bbox_end)
+        volume = cut_bounding_box(volume, bbox_start, bbox_end).get_data().astype(np.float)
 
         if preprocess_method is not None:
             print('Applying preprocess by {}...'.format(preprocess_method))
@@ -55,8 +58,6 @@ def main(pred_dir, config, split='test', overlap_factor=1, preprocess_method=Non
             else:
                 raise Exception('Unknown preprocess: {}'.format(preprocess_method))
 
-        with open(os.path.join(opts.config_dir, 'norm_params.json'), 'r') as f:
-            norm_params = json.load(f)
         if norm_params is not None and any(norm_params.values()):
             volume = normalize_data(volume, mean=norm_params['mean'], std=norm_params['std'])
 
@@ -92,4 +93,4 @@ if __name__ == "__main__":
     with open(os.path.join(opts.config_dir, 'config.json')) as f:
         config = json.load(f)
 
-    main(opts.pred_dir, config, opts.split, opts.overlap_factor, opts.preprocess_method)
+    main(opts.pred_dir, config, opts.split, opts.overlap_factor, opts.preprocess)
