@@ -44,7 +44,7 @@ def batch_iterator(indices, batch_size, data_0, patch_shape, truth_0, prev_truth
             curr_indices.append(curr_index)
             i += 1
         yield [batch, curr_indices]
-    print('Finished! {}-{}'.format(i, len(indices)))
+    # print('Finished! {}-{}'.format(i, len(indices)))
 
 
 def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, batch_size=5,
@@ -132,11 +132,11 @@ def patch_wise_prediction(model: Model, data, patch_shape, overlap_factor=0, bat
         x_pad, y_pad, z_pad = [[None if p2[0] == 0 else p2[0],
                                 None if p2[1] == 0 else -p2[1]] for p2 in pad_for_fit]
         predicted_count = predicted_count[x_pad[0]: x_pad[1],
-                                          y_pad[0]: y_pad[1],
-                                          z_pad[0]: z_pad[1]]
+                          y_pad[0]: y_pad[1],
+                          z_pad[0]: z_pad[1]]
         predicted_output = predicted_output[x_pad[0]: x_pad[1],
-                                            y_pad[0]: y_pad[1],
-                                            z_pad[0]: z_pad[1]]
+                           y_pad[0]: y_pad[1],
+                           z_pad[0]: z_pad[1]]
 
     assert np.array_equal(predicted_count.shape[:-1], data[0].shape), 'prediction shape wrong'
     return predicted_output / predicted_count
@@ -207,8 +207,7 @@ def multi_class_prediction(prediction, affine):
 
 
 def run_validation_case(data_index, output_dir, model, data_file, training_modalities, patch_shape,
-                        output_label_map=False, threshold=0.5, labels=None, overlap_factor=0, permute=False,
-                        prev_truth_index=None, prev_truth_size=None):
+                        overlap_factor=0, permute=False, prev_truth_index=None, prev_truth_size=None):
     """
     Runs a test case and writes predicted images to file.
     :param data_index: Index from of the list of test cases to get an image prediction from.
@@ -254,11 +253,15 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         for i, image in enumerate(prediction_image):
             image.to_filename(os.path.join(output_dir, "prediction_{0}.nii.gz".format(i + 1)))
     else:
-        prediction_image.to_filename(os.path.join(output_dir, "prediction.nii.gz"))
+        filename = os.path.join(output_dir, "prediction.nii.gz")
+        prediction_image.to_filename()
+    return filename
 
-def run_validation_cases(validation_keys_file, model_file, training_modalities, labels, hdf5_file, patch_shape,
-                         output_label_map=False, output_dir=".", threshold=0.5, overlap_factor=0,
-                         permute=False, prev_truth_index=None, prev_truth_size=None):
+
+def run_validation_cases(validation_keys_file, model_file, training_modalities, hdf5_file, patch_shape,
+                         output_dir=".", overlap_factor=0, permute=False,
+                         prev_truth_index=None, prev_truth_size=None):
+    file_names = []
     validation_indices = pickle_load(validation_keys_file)
     model = load_old_model(get_last_model_path(model_file))
     data_file = tables.open_file(hdf5_file, "r")
@@ -267,12 +270,13 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
             case_directory = os.path.join(output_dir, data_file.root.subject_ids[index].decode('utf-8'))
         else:
             case_directory = os.path.join(output_dir, "validation_case_{}".format(index))
-        run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
-                            training_modalities=training_modalities, output_label_map=output_label_map, labels=labels,
-                            threshold=threshold, overlap_factor=overlap_factor, permute=permute,
-                            patch_shape=patch_shape,
-                            prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size)
+        file_names.append(
+            run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
+                                training_modalities=training_modalities, overlap_factor=overlap_factor,
+                                permute=permute, patch_shape=patch_shape, prev_truth_index=prev_truth_index,
+                                prev_truth_size=prev_truth_size))
     data_file.close()
+    return file_names
 
 
 def predict(model, data, permute=False):
