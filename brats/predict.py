@@ -1,23 +1,28 @@
 import json
 import os
+from glob import glob
+from pathlib import Path
+
+import numpy as np
+import nibabel as nib
 
 from fetal_net.prediction import run_validation_cases
 import argparse
 
+from fetal_net.utils.cut_relevant_areas import find_bounding_box, cut_bounding_box
 
-def main(config, split='test', overlap_factor=1):
+
+def main(config, split='test', overlap_factor=1, config2=None):
     prediction_dir = os.path.abspath(os.path.join(config['base_dir'], 'predictions', split))
 
     indices_file = config["test_file"] if split == 'test' else config["validation_file"]
     run_validation_cases(validation_keys_file=indices_file,
                          model_file=config["model_file"],
                          training_modalities=config["training_modalities"],
-                         labels=config["labels"],
                          hdf5_file=config["data_file"],
-                         output_label_map=True,
                          output_dir=prediction_dir,
                          overlap_factor=overlap_factor,
-                         patch_shape=config["patch_shape"]+[config["patch_depth"]],
+                         patch_shape=config["patch_shape"] + [config["patch_depth"]],
                          prev_truth_index=config["prev_truth_index"],
                          prev_truth_size=config["prev_truth_size"])
 
