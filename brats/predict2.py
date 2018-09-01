@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import nibabel as nib
 
+from brats.preprocess import window_intensities_data
 from fetal_net.utils.utils import get_image
 from fetal_net.postprocess import postprocess_prediction as process_pred
 from brats.utils import get_last_model_path
@@ -16,20 +17,23 @@ import argparse
 from fetal_net.training import load_old_model
 from fetal_net.utils.cut_relevant_areas import find_bounding_box, cut_bounding_box, check_bounding_box
 
+original_data_folder = '../Datasets/Fetus'
 
-def main(pred_dir, config, split='test', overlap_factor=1):
+
+def main(pred_dir, config, split='test', overlap_factor=1, preprocess_method=None):
     padding = [16, 16, 8]
     prediction2_dir = os.path.abspath(os.path.join(config['base_dir'], 'predictions2', split))
+    model = load_old_model(get_last_model_path(config["model_file"]))
     for sample_folder in glob(os.path.join(pred_dir, split, '*')):
-        volume_path = os.path.join(sample_folder, 'data_volume.nii.gz')
         mask_path = os.path.join(sample_folder, 'prediction.nii.gz')
+        truth_path = os.path.join(sample_folder, 'truth.nii.gz')
 
         subject_id = Path(sample_folder).name
         dest_folder = os.path.join(prediction2_dir, subject_id)
         Path(dest_folder).mkdir(parents=True, exist_ok=True)
-        volume = nib.load(volume_path)
-        orig_volume_shape = np.array(volume.get_data().shape)
-        nib.save(volume, os.path.join(dest_folder, Path(volume_path).name))
+
+        truth = nib.load(truth_path)
+        nib.save(truth, os.path.join(dest_folder, Path(truth_path).name))
 
         mask = nib.load(mask_path)
         mask = process_pred(mask.get_data(), gaussian_std=0.5, threshold=0.5)
@@ -39,14 +43,23 @@ def main(pred_dir, config, split='test', overlap_factor=1):
             bbox_start = np.maximum(bbox_start - padding, 0)
             bbox_end = np.minimum(bbox_end + padding, mask.shape)
         print("BBox: {}-{}".format(bbox_start, bbox_end))
-        volume = cut_bounding_box(volume, bbox_start, bbox_end).get_data()
-        print("Sliced volume from {} to {}".format(orig_volume_shape, volume.shape))
-        model = load_old_model(get_last_model_path(config["model_file"]))
+
+        volume = nib.load(os.path.join(original_data_folder, subject_id, 'volume.nii')).get_data()
+        orig_volume_shape = np.array(volume.get_data().shape)
+        volume = cut_bounding_box(volume, bbox_start, bbox_end)
+
+        if preprocess_method is not None:
+            print('Applying preprocess by {}...'.format(preprocess_method))
+            if preprocess_method == 'window_1_99':
+                volume = window_intensities_data(volume)
+            else:
+                raise Exception('Unknown preprocess: {}'.format(preprocess_method))
 
         with open(os.path.join(opts.config_dir, 'norm_params.json'), 'r') as f:
             norm_params = json.load(f)
         if norm_params is not None and any(norm_params.values()):
             volume = normalize_data(volume, mean=norm_params['mean'], std=norm_params['std'])
+
         prediction = patch_wise_prediction(
             model=model, data=np.expand_dims(volume, 0),
             patch_shape=config["patch_shape"] + [config["patch_depth"]],
@@ -57,7 +70,7 @@ def main(pred_dir, config, split='test', overlap_factor=1):
         padding2 = list(zip(bbox_start, orig_volume_shape - bbox_end))
         print(padding2)
         prediction = np.pad(prediction, padding2, mode='constant', constant_values=0)
-        assert all([s1==s2 for s1,s2 in zip(prediction.shape, orig_volume_shape)])
+        assert all([s1 == s2 for s1, s2 in zip(prediction.shape, orig_volume_shape)])
         prediction = get_image(prediction)
         nib.save(prediction, os.path.join(dest_folder, Path(mask_path).name))
 
@@ -68,6 +81,8 @@ if __name__ == "__main__":
                         type=str, required=True)
     parser.add_argument("--config_dir", help="specifies config dir path",
                         type=str, required=True)
+    parser.add_argument("--preprocess", help="specifies config dir path",
+                        type=str, required=True)
     parser.add_argument("--split", help="What split to predict on? (test/val)",
                         type=str, default='test')
     parser.add_argument("--overlap_factor", help="specifies overlap between prediction patches",
@@ -77,4 +92,4 @@ if __name__ == "__main__":
     with open(os.path.join(opts.config_dir, 'config.json')) as f:
         config = json.load(f)
 
-    main(opts.pred_dir, config, opts.split, opts.overlap_factor)
+    main(opts.pred_dir, config, opts.split, opts.overlap_factor, opts.preprocess_method)
