@@ -15,7 +15,11 @@ from fetal_net.utils.cut_relevant_areas import find_bounding_box, cut_bounding_b
 def main(config, split='test', overlap_factor=1, config2=None):
     prediction_dir = os.path.abspath(os.path.join(config['base_dir'], 'predictions', split))
 
-    indices_file = config["test_file"] if split == 'test' else config["validation_file"]
+    indices_file = {
+      "test": config["test_file"],
+      "val": config["validation_file"],
+      "train": config["training_file"]
+    }[split]
     run_validation_cases(validation_keys_file=indices_file,
                          model_file=config["model_file"],
                          training_modalities=config["training_modalities"],
