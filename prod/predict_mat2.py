@@ -40,8 +40,10 @@ def secondary_prediction(mask, vol, config2, model2_path=None,
                               data=np.expand_dims(data, 0),
                               overlap_factor=overlap_factor,
                               patch_shape=config2["patch_shape"] + [config2["patch_depth"]])
+    prediction = prediction.squeeze()
     padding2 = list(zip(bbox_start, np.array(vol.shape) - bbox_end))
     print(padding2)
+    print(prediction.shape)
     prediction = np.pad(prediction, padding2, mode='constant', constant_values=0)
     return prediction
 
@@ -91,12 +93,17 @@ def main(input_mat_path, output_mat_path, overlap_factor,
 
     if config2 is not None:
         print('Making secondary prediction... [6]')
-        mat['masks'][0, 6] = \
-            process_pred(secondary_prediction(mat['masks'][0, 7], vol=mat['volume'].astype(np.float),
+        prediction = secondary_prediction(mat['masks'][0, 7], vol=mat['volume'].astype(np.float),
                                               config2=config2, model2_path=model2_path,
                                               preprocess_method2=preprocess_method2, norm_params2=norm_params2,
-                                              overlap_factor=0.9),
-                         gaussian_std=0.5, threshold=0.5)
+                                              overlap_factor=0.9)
+        mat['masks'][0, 6] = \
+            process_pred(prediction, gaussian_std=0, threshold=0.2)  # .astype(np.uint8)
+        mat['masks'][0, 5] = \
+            process_pred(prediction, gaussian_std=1, threshold=0.5)  # .astype(np.uint8)
+        mat['masks'][0, 4] = \
+            process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
+
 
     print('Saving mat to {}'.format(output_mat_path))
     savemat(output_mat_path, mat)
@@ -108,7 +115,7 @@ def get_params(config_dir):
         __config = json.load(f)
     with open(os.path.join(config_dir, 'norm_params.json'), 'r') as f:
         __norm_params = json.load(f)
-    __model_path = os.path.join(config_dir, os.path.basename(_config['model_file']))
+    __model_path = os.path.join(config_dir, os.path.basename(__config['model_file']))
     return __config, __norm_params, __model_path
 
 
