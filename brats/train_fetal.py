@@ -105,6 +105,8 @@ else:
     if config['3D']:
         config["input_shape"] = [1] + list(config["input_shape"])
 
+    config["ext"] = ".gz"
+
     with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
         json.dump(config, f, indent=2)
 
@@ -118,7 +120,7 @@ def fetch_training_data_files(return_subject_ids=False):
         subject_ids.append(os.path.basename(subject_dir))
         subject_files = list()
         for modality in config["training_modalities"] + ["truth"]:
-            subject_files.append(os.path.join(subject_dir, modality + ".nii"))
+            subject_files.append(os.path.join(subject_dir, modality + ".nii" + config["ext"]))
         training_data_files.append(tuple(subject_files))
     if return_subject_ids:
         return training_data_files, subject_ids
