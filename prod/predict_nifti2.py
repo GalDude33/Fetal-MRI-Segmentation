@@ -13,8 +13,13 @@ from fetal_net.training import load_old_model
 from brats.preprocess import window_intensities_data
 
 from fetal_net.utils.cut_relevant_areas import find_bounding_box, check_bounding_box
-from fetal_net.utils.utils import read_img
+from fetal_net.utils.utils import read_img, get_image
 import nibabel as nib
+
+
+def save_nifti(data, path):
+    nifti = get_image(data)
+    nib.save(nifti, path)
 
 
 def secondary_prediction(mask, vol, config2, model2_path=None,
@@ -79,8 +84,7 @@ def main(input_path, output_path, overlap_factor,
                               data=np.expand_dims(data, 0),
                               overlap_factor=overlap_factor,
                               patch_shape=config["patch_shape"] + [config["patch_depth"]])
-    pred_nifti = new_img_like(nifti, prediction)
-    nib.save(pred_nifti, os.path.join(output_path, 'pred.nii'))
+    nib.save(prediction, os.path.join(output_path, 'pred.nii'))
 
     print('Post-processing mask...')
     if prediction.shape[-1] > 1:
@@ -95,8 +99,7 @@ def main(input_path, output_path, overlap_factor,
                                           config2=config2, model2_path=model2_path,
                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
                                           overlap_factor=0.9)
-        pred_nifti = new_img_like(nifti, prediction)
-        nib.save(pred_nifti, os.path.join(output_path,'pred_roi.nii'))
+        nib.save(prediction, os.path.join(output_path, 'pred_roi.nii'))
 
     print('Saving to {}'.format(output_path))
     print('Finished.')
