@@ -91,7 +91,7 @@ def main(input_path, output_path, overlap_factor,
 
     if config2 is not None:
         print('Making secondary prediction... [6]')
-        prediction = secondary_prediction(mask, vol=mat.astype(np.float),
+        prediction = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
                                           config2=config2, model2_path=model2_path,
                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
                                           overlap_factor=0.9)
@@ -142,6 +142,6 @@ if __name__ == '__main__':
     else:
         _config2, _norm_params2, _model2_path = None, None, None
 
-    main(opts.input_mat, opts.output_mat, overlap_factor=opts.overlap_factor,
+    main(opts.input_nii, opts.output_folder, overlap_factor=opts.overlap_factor,
          config=_config, model_path=_model_path, preprocess_method=opts.preprocess, norm_params=_norm_params,
          config2=_config2, model2_path=_model2_path, preprocess_method2=opts.preprocess2, norm_params2=_norm_params2)
