@@ -96,6 +96,9 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                                              validation_file=validation_keys_file,
                                                              test_file=test_keys_file)
 
+    print("Training: {}".format(training_list))
+    print("Validation: {}".format(validation_list))
+
     training_generator = \
         data_generator(data_file, training_list, batch_size=batch_size, augment=augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
