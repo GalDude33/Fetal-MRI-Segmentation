@@ -3,6 +3,7 @@ import random
 import numpy as np
 from keras.utils import to_categorical
 
+from brats.utils import AttributeDict as att_dict
 from fetal_net.utils.utils import resize
 from .augment import augment_data, random_permutation_x_y, get_image
 from .utils import pickle_dump, pickle_load
@@ -12,8 +13,16 @@ from .utils.patches import get_patch_from_3d_data
 class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
-        self.data_min = [np.percentile(_, q=1) for _ in self.data]
         self.truth = [_ for _ in file.root.truth]
+        self.stats = [
+            att_dict(p1=np.percentile(_, q=1),
+                     min=np.min(_),
+                     max=np.max(_))
+            for _ in self.data
+        ]
+        # self.data_p1 = [np.percentile(_, q=1) for _ in self.data]
+        # self.data_min = [np.min(_) for _ in self.data]
+        # self.data_max = [np.max(_) for _ in self.data]
         self.root = self
 
 
@@ -236,13 +245,18 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
             prev_truth_range = None
 
         data, truth, prev_truth = augment_data(data, truth,
-                                               data_min=data_file.root.data_min[index],
-                                               flip=augment['flip'],
-                                               scale_deviation=augment['scale'],
-                                               rotate_deviation=augment['rotate'],
-                                               translate_deviation=augment['translate'],
-                                               data_range=data_range, truth_range=truth_range,
-                                               prev_truth_range=prev_truth_range)
+                                               data_min=data_file.root.data_min[index], data_max=data_file.root.data_max[index],
+                                               scale_deviation=augment.get(['scale'], None),
+                                               rotate_deviation=augment.get(['rotate'], None),
+                                               translate_deviation=augment.get(['translate'], None),
+                                               flip=augment.get(['flip'], None),
+                                               contrast_deviation=augment.get(['contrast'], None),
+                                               piecewise_affine=augment.get(['piecewise_affine'], None),
+                                               elastic_transform=augment.get(['elastic_transform'], None),
+                                               intensity_multiplication_range=augment.get(['intensity_multiplication'], None),
+                                               poisson_noise=augment.get(["poisson_noise"], None),
+                                               gaussian_filter=augment.get(["gaussian_filter"], None),
+                                               data_range=data_range, truth_range=truth_range, prev_truth_range=prev_truth_range)
     else:
         data, truth, prev_truth = \
             extract_patch(data, patch_corner, patch_shape, truth,
