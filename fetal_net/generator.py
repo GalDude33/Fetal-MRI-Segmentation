@@ -14,12 +14,12 @@ class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
         self.truth = [_ for _ in file.root.truth]
-        self.stats = [
-            att_dict(p1=np.percentile(_, q=1),
-                     min=np.min(_),
-                     max=np.max(_))
-            for _ in self.data
-        ]
+        self.stats = att_dict(
+            p1=[np.percentile(_, q=1) for _ in self.data],
+            min=[np.min(_) for _ in self.data],
+            max=[np.max(_) for _ in self.data],
+        )
+
         # self.data_p1 = [np.percentile(_, q=1) for _ in self.data]
         # self.data_min = [np.min(_) for _ in self.data]
         # self.data_max = [np.max(_) for _ in self.data]
@@ -34,21 +34,21 @@ def pad_samples(data_file, patch_shape, truth_downsample):
 
     data_file.root.data = \
         [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=data_min)
-         for data, data_min in zip(data_file.root.data, data_file.root.data_min)]
+         for data, data_min in zip(data_file.data, data_file.stats.min)]
     data_file.root.truth = \
         [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
-         for truth in data_file.root.truth]
+         for truth in data_file.truth]
 
     data_file.root.data = \
         [np.pad(data,
                 [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape) + 1, 0) / 2).astype(int)],
                 'constant', constant_values=data_min)
-         for data, data_min in zip(data_file.root.data, data_file.root.data_min)]
+         for data, data_min in zip(data_file.data, data_file.stats.min)]
     data_file.root.truth = \
         [np.pad(truth,
                 [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
                 'constant', constant_values=0)
-         for truth in data_file.root.truth]
+         for truth in data_file.truth]
 
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
@@ -248,7 +248,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
             prev_truth_range = None
 
         data, truth, prev_truth = augment_data(data, truth,
-                                               data_min=data_file.root.data_min[index], data_max=data_file.root.data_max[index],
+                                               data_min=data_file.stats.min[index], data_max=data_file.stats.max[index],
                                                scale_deviation=augment.get(['scale'], None),
                                                rotate_deviation=augment.get(['rotate'], None),
                                                translate_deviation=augment.get(['translate'], None),
