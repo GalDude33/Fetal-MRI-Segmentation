@@ -59,7 +59,8 @@ else:
     config["truth_channel"] = config["nb_channels"]
 
     config["batch_size"] = 1
-    config["patches_per_img_per_batch"] = 1
+    config["patches_per_img_per_batch_train"] = 1
+    config["patches_per_img_per_batch_val"] = 1
     config["validation_batch_size"] = 1
     config["n_epochs"] = 300  # cutoff the training after this many epochs
     config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
@@ -174,7 +175,8 @@ def main(overwrite=False):
         prev_truth_size=config["prev_truth_size"],
         truth_downsample=config["truth_downsample"],
         truth_crop=config["truth_crop"],
-        patches_per_img_per_batch=config["patches_per_img_per_batch"],
+        patches_per_img_per_batch_train=config["patches_per_img_per_batch_train"],
+        patches_per_img_per_batch_val=config["patches_per_img_per_batch_val"],
         categorical=config["categorical"], is3d=config["3D"],
         drop_easy_patches_train=config["drop_easy_patches_train"],
         drop_easy_patches_val=config["drop_easy_patches_val"])
