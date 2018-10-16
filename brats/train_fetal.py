@@ -76,8 +76,26 @@ else:
         "flip": [0.5, 0.5, 0.5],  # augments the data by randomly flipping an axis during
         "permute": False,  # data shape must be a cube. Augments the data by permuting in various directions
         "translate": (10, 10, 5),  #
-        "scale": 0.10,  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
-        "rotate": (7, 7, 7),  # std of angle rotation, switch to None if you want no rotation
+        "scale": (0, 0, 0.10),  # i.e 0.20 for 20%, std of scaling factor, switch to None if you want no distortion
+        "rotate": (0, 0, 7),  # std of angle rotation, switch to None if you want no rotation
+        "contrast": {
+            'prob': 0,
+            'min_factor': 0.2,
+            'max_factor': 0.1
+        },
+        "piecewise_affine": {
+            'scale': 2
+        },
+        "elastic_transform": {
+            'alpha': 5,
+            'sigma': 10
+        },
+        "intensity_multiplication": 0.2,
+        "poisson_noise": 0.2,
+        "gaussian_filter": {
+            'max_sigma': 0.5,
+            'prob': 0.5,
+        }
     }
     config["augment"] = config["augment"] if any(config["augment"].values()) else None
     config["validation_patch_overlap"] = 0  # if > 0, during training, validation patches will be overlapping
