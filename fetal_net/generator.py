@@ -56,7 +56,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
                                            truth_index=-1, truth_size=1, truth_downsample=None, truth_crop=True,
-                                           patches_per_img_per_batch=1, categorical=True, is3d=False,
+                                           patches_per_img_per_batch_train=1, patches_per_img_per_batch_val=1, categorical=True, is3d=False,
                                            prev_truth_index=None, prev_truth_size=None,
                                            drop_easy_patches_train=False, drop_easy_patches_val=False):
     """
@@ -105,6 +105,9 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                                              validation_file=validation_keys_file,
                                                              test_file=test_keys_file)
 
+    print("Training: {}".format(training_list))
+    print("Validation: {}".format(validation_list))
+
     training_generator = \
         data_generator(data_file, training_list, batch_size=batch_size, augment=augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
@@ -125,10 +128,10 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                        drop_easy_patches=drop_easy_patches_val)
 
     # Set the number of training and testing samples per epoch correctly
-    num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
+    num_training_steps = patches_per_img_per_batch_train * get_number_of_steps(len(training_list), batch_size)
     print("Number of training steps: ", num_training_steps)
 
-    num_validation_steps = patches_per_img_per_batch * get_number_of_steps(len(validation_list), validation_batch_size)
+    num_validation_steps = patches_per_img_per_batch_val * get_number_of_steps(len(validation_list), validation_batch_size)
     print("Number of validation steps: ", num_validation_steps)
 
     return training_generator, validation_generator, num_training_steps, num_validation_steps
@@ -246,16 +249,16 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
 
         data, truth, prev_truth = augment_data(data, truth,
                                                data_min=data_file.stats.min[index], data_max=data_file.stats.max[index],
-                                               scale_deviation=augment.get(['scale'], None),
-                                               rotate_deviation=augment.get(['rotate'], None),
-                                               translate_deviation=augment.get(['translate'], None),
-                                               flip=augment.get(['flip'], None),
-                                               contrast_deviation=augment.get(['contrast'], None),
-                                               piecewise_affine=augment.get(['piecewise_affine'], None),
-                                               elastic_transform=augment.get(['elastic_transform'], None),
-                                               intensity_multiplication_range=augment.get(['intensity_multiplication'], None),
-                                               poisson_noise=augment.get(["poisson_noise"], None),
-                                               gaussian_filter=augment.get(["gaussian_filter"], None),
+                                               scale_deviation=augment.get('scale', None),
+                                               rotate_deviation=augment.get('rotate', None),
+                                               translate_deviation=augment.get('translate', None),
+                                               flip=augment.get('flip', None),
+                                               contrast_deviation=augment.get('contrast', None),
+                                               piecewise_affine=augment.get('piecewise_affine', None),
+                                               elastic_transform=augment.get('elastic_transform', None),
+                                               intensity_multiplication_range=augment.get('intensity_multiplication', None),
+                                               poisson_noise=augment.get("poisson_noise", None),
+                                               gaussian_filter=augment.get("gaussian_filter", None),
                                                data_range=data_range, truth_range=truth_range, prev_truth_range=prev_truth_range)
     else:
         data, truth, prev_truth = \
