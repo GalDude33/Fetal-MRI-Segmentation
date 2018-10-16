@@ -19,6 +19,7 @@ class DataFileDummy:
             min=[np.min(_) for _ in self.data],
             max=[np.max(_) for _ in self.data],
         )
+        self.subject_ids = [_ for _ in file.root.subject_ids]
 
         # self.data_p1 = [np.percentile(_, q=1) for _ in self.data]
         # self.data_min = [np.min(_) for _ in self.data]
@@ -56,7 +57,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
                                            truth_index=-1, truth_size=1, truth_downsample=None, truth_crop=True,
-                                           patches_per_img_per_batch_train=1, patches_per_img_per_batch_val=1, categorical=True, is3d=False,
+                                           patches_per_img_per_batch_train=1, patches_per_img_per_batch_val=1,
+                                           categorical=True, is3d=False,
                                            prev_truth_index=None, prev_truth_size=None,
                                            drop_easy_patches_train=False, drop_easy_patches_val=False):
     """
@@ -98,15 +100,16 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
 
     pad_samples(data_file, patch_shape, truth_downsample or 1)
 
-    training_list, validation_list, _ = get_validation_split(data_file,
-                                                             data_split=data_split,
-                                                             overwrite=overwrite,
-                                                             training_file=training_keys_file,
-                                                             validation_file=validation_keys_file,
-                                                             test_file=test_keys_file)
+    training_list, validation_list, test_list = get_validation_split(data_file,
+                                                                     data_split=data_split,
+                                                                     overwrite=overwrite,
+                                                                     training_file=training_keys_file,
+                                                                     validation_file=validation_keys_file,
+                                                                     test_file=test_keys_file)
 
-    print("Training: {}".format(training_list))
-    print("Validation: {}".format(validation_list))
+    print("Training: {}".format([data_file.subject_ids[_].decode() for _ in training_list]))
+    print("Validation: {}".format([data_file.subject_ids[_].decode() for _ in validation_list]))
+    print("Test: {}".format([data_file.subject_ids[_].decode() for _ in test_list]))
 
     training_generator = \
         data_generator(data_file, training_list, batch_size=batch_size, augment=augment,
@@ -131,7 +134,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     num_training_steps = patches_per_img_per_batch_train * get_number_of_steps(len(training_list), batch_size)
     print("Number of training steps: ", num_training_steps)
 
-    num_validation_steps = patches_per_img_per_batch_val * get_number_of_steps(len(validation_list), validation_batch_size)
+    num_validation_steps = patches_per_img_per_batch_val * get_number_of_steps(len(validation_list),
+                                                                               validation_batch_size)
     print("Number of validation steps: ", num_validation_steps)
 
     return training_generator, validation_generator, num_training_steps, num_validation_steps
@@ -256,10 +260,12 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
                                                contrast_deviation=augment.get('contrast', None),
                                                piecewise_affine=augment.get('piecewise_affine', None),
                                                elastic_transform=augment.get('elastic_transform', None),
-                                               intensity_multiplication_range=augment.get('intensity_multiplication', None),
+                                               intensity_multiplication_range=augment.get('intensity_multiplication',
+                                                                                          None),
                                                poisson_noise=augment.get("poisson_noise", None),
                                                gaussian_filter=augment.get("gaussian_filter", None),
-                                               data_range=data_range, truth_range=truth_range, prev_truth_range=prev_truth_range)
+                                               data_range=data_range, truth_range=truth_range,
+                                               prev_truth_range=prev_truth_range)
     else:
         data, truth, prev_truth = \
             extract_patch(data, patch_corner, patch_shape, truth,
