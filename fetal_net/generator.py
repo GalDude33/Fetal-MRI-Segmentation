@@ -254,6 +254,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
         data, truth, prev_truth = augment_data(data, truth,
                                                data_min=data_file.stats.min[index], data_max=data_file.stats.max[index],
                                                scale_deviation=augment.get('scale', None),
+                                               iso_scale_deviation=augment.get('iso_scale', None),
                                                rotate_deviation=augment.get('rotate', None),
                                                translate_deviation=augment.get('translate', None),
                                                flip=augment.get('flip', None),

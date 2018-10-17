@@ -141,6 +141,7 @@ def distort_image(data, affine, flip_axis=None, scale_factor=None, rotate_factor
     # translate center of image to 0,0,0
     center_offset = np.array(data.shape) / 2
     affine = translate_image(affine, -center_offset)
+    #print('Affine - center offset: ', str(affine))
 
     if flip_axis is not None:
         affine = flip_image(affine, flip_axis)
@@ -165,17 +166,23 @@ def random_flip_dimensions(n_dim, flip_factor):
     ]
 
 
-def augment_data(data, truth, data_min, data_max,
-                 scale_deviation=None, rotate_deviation=None, translate_deviation=None,
-                 flip=None, contrast_deviation=None, poisson_noise=None,
-                 piecewise_affine=None, elastic_transform=None,
-                 intensity_multiplication_range=None, gaussian_filter=None,
-                 data_range=None, truth_range=None, prev_truth_range=None):
+def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scale_deviation=None, rotate_deviation=None,
+                 translate_deviation=None, flip=None, contrast_deviation=None, poisson_noise=None,
+                 piecewise_affine=None, elastic_transform=None, intensity_multiplication_range=None,
+                 gaussian_filter=None, data_range=None, truth_range=None, prev_truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
     else:
-        scale_factor = None
+        scale_factor = [1, 1, 1]
+    if iso_scale_deviation:
+        iso_scale_factor = np.random.uniform(1, iso_scale_deviation["max"])
+        if random_boolean():
+            iso_scale_factor = 1 / iso_scale_factor
+        scale_factor[0] *= iso_scale_factor
+        scale_factor[1] *= iso_scale_factor
+    else:
+        iso_scale_factor = None
     if rotate_deviation:
         rotate_factor = random_rotation_angle(n_dim, std=rotate_deviation)
         rotate_factor = np.deg2rad(rotate_factor)
