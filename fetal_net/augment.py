@@ -269,14 +269,14 @@ def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scal
     if contrast_deviation is not None:
         data = contrast_augment(data, contrast_min_val, contrast_max_val)
 
-    if apply_poisson_noise:
-        data = shot_noise(data)
-
     if intensity_multiplication != 1:
         data = data * intensity_multiplication
 
     if apply_gaussian:
         data = apply_gaussian_filter(data, gaussian_sigma)
+
+    if apply_poisson_noise:
+        data = shot_noise(data)
 
     return data, truth_data, prev_truth_data
 
