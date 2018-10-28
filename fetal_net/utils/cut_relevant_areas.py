@@ -3,7 +3,7 @@ from glob import glob
 import nibabel as nib
 import numpy as np
 from pathlib import Path
-from nilearn.image.image import _crop_img_to as crop_img_to
+from nilearn.image.image import _crop_img_to as crop_img_to, new_img_like
 
 
 def main(src_dir, dst_dir, padding):
@@ -12,7 +12,9 @@ def main(src_dir, dst_dir, padding):
         mask_path = os.path.join(sample_folder, 'truth.nii')
 
         volume = nib.load(volume_path)
+        volume = new_img_like(volume, volume.get_data(), affine=np.eye(4))
         mask = nib.load(mask_path)
+        mask = new_img_like(volume, mask.get_data())
 
         bbox_start, bbox_end = find_bounding_box(mask.get_data())
         if padding is not None:
@@ -26,8 +28,8 @@ def main(src_dir, dst_dir, padding):
         dest_folder = os.path.join(dst_dir, subject_id)
         Path(dest_folder).mkdir(parents=True, exist_ok=True)
 
-        nib.save(volume, os.path.join(dest_folder, Path(volume_path).name))
-        nib.save(mask, os.path.join(dest_folder, Path(mask_path).name))
+        nib.save(volume, os.path.join(dest_folder, Path(volume_path).name+'.gz'))
+        nib.save(mask, os.path.join(dest_folder, Path(mask_path).name+'.gz'))
 
 
 def cut_bounding_box(img, start, end):
@@ -49,8 +51,8 @@ def check_bounding_box(mask, start, end):
 
 
 if __name__ == '__main__':
-    src_dir = '/home/galdude33/Lab/FetalEnvelope2/MRscans_nifty'
-    dst_dir = './cut_scans_2/'
+    src_dir = '/home/galdude33/Lab/workspace/Datasets/brain_new'
+    dst_dir = '/home/galdude33/Lab/workspace/Datasets/brain_new_cutted'
 
     padding = np.array([16, 16, 8])
     main(src_dir, dst_dir, padding)
