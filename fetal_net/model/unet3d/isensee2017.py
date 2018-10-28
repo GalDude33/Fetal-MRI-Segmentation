@@ -11,8 +11,8 @@ create_convolution_block = partial(create_convolution_block, activation=LeakyReL
 
 
 def isensee2017_model_3d(input_shape=(1, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
-                      n_segmentation_levels=3, n_labels=1, optimizer=Adam, initial_learning_rate=5e-4,
-                      loss_function=dice_coefficient_loss, activation_name="sigmoid"):
+                         n_segmentation_levels=3, n_labels=1, optimizer=Adam, initial_learning_rate=5e-4,
+                         loss_function=dice_coefficient_loss, activation_name="sigmoid"):
     """
     This function builds a model proposed by Isensee et al. for the BRATS 2017 competition:
     https://www.cbica.upenn.edu/sbia/Spyridon.Bakas/MICCAI_BraTS/MICCAI_BraTS_2017_proceedings_shortPapers.pdf
@@ -39,7 +39,7 @@ def isensee2017_model_3d(input_shape=(1, 128, 128, 128), n_base_filters=16, dept
     level_output_layers = list()
     level_filters = list()
     for level_number in range(depth):
-        n_level_filters = (2**level_number) * n_base_filters
+        n_level_filters = (2 ** level_number) * n_base_filters
         level_filters.append(n_level_filters)
 
         if current_layer is inputs:
@@ -98,6 +98,3 @@ def create_context_module(input_layer, n_level_filters, dropout_rate=0.3, data_f
     dropout = SpatialDropout3D(rate=dropout_rate, data_format=data_format)(convolution1)
     convolution2 = create_convolution_block(input_layer=dropout, n_filters=n_level_filters)
     return convolution2
-
-
-

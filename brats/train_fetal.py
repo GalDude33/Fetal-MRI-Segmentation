@@ -2,6 +2,7 @@ import os
 import glob
 
 import fetal_net
+import fetal_net.metrics
 from brats.utils import get_last_model_path
 from fetal_net.data import write_data_to_file, open_data_file
 from fetal_net.generator import get_training_and_validation_generators
@@ -71,7 +72,10 @@ else:
 
     config["categorical"] = False  # will make the target one_hot
     config["3D"] = True  # will make the target one_hot
-    config["loss"] = 'dice'  # or 'dice_coeeficient'
+    config["loss"] = {
+        0: 'binary_crossentropy_loss',
+        1: 'dice_coeeficient_loss'
+    }[1]
 
     config["augment"] = {
         "flip": [0.5, 0.5, 0.5],  # augments the data by randomly flipping an axis during
@@ -165,10 +169,12 @@ def main(overwrite=False):
         model = load_old_model(model_path)
     else:
         # instantiate new model
+        loss_func = getattr(fetal_net.metrics, config['loss'])
         model_func = getattr(fetal_net.model, config['model_name'])
         model = model_func(input_shape=config["input_shape"],
-                           initial_learning_rate=config["initial_learning_rate"])
-        # loss_function=config["loss"])
+                           initial_learning_rate=config["initial_learning_rate"],
+                           **{'dropout_rate': config['dropout_rate'],
+                              'loss_function': loss_func})
     model.summary()
 
     # get training and testing generators
