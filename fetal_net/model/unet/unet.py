@@ -42,15 +42,9 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
     increases the amount memory required during training.
     :return: Untrained 3D UNet Model
     """
-    additional_metric = vod_coefficient
-    if isinstance(loss_function, str):
-        if loss_function == 'dice':
-            loss_function = dice_coefficient_loss
-        elif loss_function == 'vod':
-            loss_function = vod_coefficient_loss
-            additional_metric = dice_coefficient
-        else:
-            raise Exception('Unknown loss function {}, choose dice or vod'.format(loss_function))
+    metrics = ['binary_accuracy', vod_coefficient]
+    if loss_function != dice_coefficient_loss:
+        metrics += [dice_coefficient]
 
     inputs = Input(input_shape)
     inputs_p = Permute((3, 1, 2))(inputs)
@@ -90,15 +84,6 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
     act = Activation(activation_name)(final_convolution)
     act = Permute((2, 3, 1))(act)
     model = Model(inputs=inputs, outputs=act)
-
-    metrics = [additional_metric, 'binary_accuracy']
-
-    # if include_label_wise_dice_coefficients and n_labels > 1:
-    #     label_wise_dice_metrics = [get_label_dice_coefficient_function(index) for index in range(n_labels)]
-    #     if metrics:
-    #         metrics = metrics + label_wise_dice_metrics + ['acc']
-    #     else:
-    #         metrics = label_wise_dice_metrics
 
     model.compile(optimizer=Adam(lr=initial_learning_rate), loss=loss_function, metrics=metrics)
     return model

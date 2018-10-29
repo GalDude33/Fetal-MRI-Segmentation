@@ -31,15 +31,9 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
     :param activation_name:
     :return:
     """
-    additional_metric = vod_coefficient
-    if isinstance(loss_function, str):
-        if loss_function == 'dice':
-            loss_function = dice_coefficient_loss
-        elif loss_function == 'vod':
-            loss_function = vod_coefficient_loss
-            additional_metric = dice_coefficient
-        else:
-            raise Exception('Unknown loss function {}, choose dice or vod'.format(loss_function))
+    metrics = ['binary_accuracy', vod_coefficient]
+    if loss_function != dice_coefficient_loss:
+        metrics += [dice_coefficient]
 
     inputs = Input(input_shape)
     inputs_p = Permute((3, 1, 2))(inputs)
@@ -85,7 +79,7 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
     activation_block = Permute((2, 3, 1))(activation_block)
     model = Model(inputs=inputs, outputs=activation_block)
     model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function,
-                  metrics=['binary_accuracy', additional_metric])
+                  metrics=metrics)
     return model
 
 

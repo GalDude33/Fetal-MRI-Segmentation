@@ -77,7 +77,10 @@ def unet_model_3d(input_shape, pool_size=(2, 2, 2), n_labels=1, initial_learning
     #         metrics = metrics + label_wise_dice_metrics
     #     else:
     #         metrics = label_wise_dice_metrics
-    metrics = [vod_coefficient, 'binary_accuracy']
+    metrics = ['binary_accuracy', vod_coefficient]
+    if loss_function != dice_coefficient_loss:
+        metrics += [dice_coefficient]
+
     model.compile(optimizer=Adam(lr=initial_learning_rate), loss=loss_function, metrics=metrics)
     return model
 
