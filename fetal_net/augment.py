@@ -291,7 +291,7 @@ def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scal
         data = shot_noise(data)
 
     if coarse_dropout is not None:
-        apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size, per_channel=coarse_dropout["per_channel"])
+        data = apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size, per_channel=coarse_dropout["per_channel"])
 
     return data, truth_data, prev_truth_data
 
