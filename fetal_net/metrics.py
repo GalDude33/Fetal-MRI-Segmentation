@@ -68,7 +68,7 @@ def weighted_cross_entropy_loss(y_true, y_pred, weight_mask=None):
     return K.mean(xent)
 
 
-def focal_loss(gamma=2., alpha=.25):
+def _focal_loss(gamma=2., alpha=.25):
     def focal_loss_fixed(y_true, y_pred):
         pt_1 = tf.where(tf.equal(y_true, 1), y_pred, tf.ones_like(y_pred))
         pt_0 = tf.where(tf.equal(y_true, 0), y_pred, tf.zeros_like(y_pred))
@@ -81,3 +81,4 @@ def focal_loss(gamma=2., alpha=.25):
 dice_coef = dice_coefficient
 dice_coef_loss = dice_coefficient_loss
 binary_crossentropy_loss = binary_crossentropy
+focal_loss = _focal_loss()
