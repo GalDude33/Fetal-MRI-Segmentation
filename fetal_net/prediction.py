@@ -254,7 +254,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
             image.to_filename(os.path.join(output_dir, "prediction_{0}.nii.gz".format(i + 1)))
     else:
         filename = os.path.join(output_dir, "prediction.nii.gz")
-        prediction_image.to_filename()
+        prediction_image.to_filename(filename)
     return filename
 
 
