@@ -59,8 +59,8 @@ def rotate_image_z(affine, rotate_factor):
     sin_gamma = np.sin(rotate_factor)
     cos_gamma = np.cos(rotate_factor)
     rotation_affine = np.array([[cos_gamma, -sin_gamma, 0, 0],
-                                [sin_gamma, cos_gamma, 0,  0],
-                                [0, 0, 1 , 0],
+                                [sin_gamma, cos_gamma, 0, 0],
+                                [0, 0, 1, 0],
                                 [0, 0, 0, 1]])
     new_affine = rotation_affine.dot(affine)
     return new_affine
@@ -87,7 +87,7 @@ def flip_image(affine, axis):
 
 
 def shot_noise(data):
-    mm_scaler = MinMaxScaler((-1, 1))
+    mm_scaler = MinMaxScaler((0, 1))
     data = mm_scaler.fit_transform(data)
     data = random_noise(data, mode='poisson', clip=True)
     return mm_scaler.inverse_transform(data)
@@ -96,9 +96,14 @@ def shot_noise(data):
 def apply_gaussian_filter(data, sigma):
     return gaussian(data, sigma=sigma)
 
+def apply_coarse_dropout(data, rate, size_percent, per_channel=True):
+    mm_scaler = MinMaxScaler((0, 255))
+    data = mm_scaler.fit_transform(data)
+    new_data = iaa.CoarseDropout(p=rate, size_percent=size_percent, per_channel=per_channel).augment_image(data)
+    return mm_scaler.inverse_transform(new_data)
 
 def contrast_augment(data, min_per, max_per):
-    #in_range = (np.percentile(data, q=min_per), np.percentile(data, q=max_per))
+    # in_range = (np.percentile(data, q=min_per), np.percentile(data, q=max_per))
     in_range = (min_per, max_per)
     return exposure.rescale_intensity(data, in_range=in_range, out_range='image')
 
@@ -114,8 +119,10 @@ def apply_piecewise_affine(data, truth, scale):
 
 def apply_elastic_transform(data, truth, alpha, sigma):
     rs = np.random.RandomState()
-    vol_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=1, random_state=rs, deterministic=True, mode="nearest")
-    mask_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=0, random_state=rs, deterministic=True, mode="nearest")
+    vol_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=1, random_state=rs, deterministic=True,
+                                                 mode="nearest")
+    mask_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=0, random_state=rs,
+                                                  deterministic=True, mode="nearest")
     data = vol_et_transform.augment_image(data)
     truth = mask_et_transform.augment_image(truth)
     return data, truth
@@ -138,10 +145,12 @@ def random_boolean():
 
 
 def distort_image(data, affine, flip_axis=None, scale_factor=None, rotate_factor=None, translate_factor=None):
+    # print('Affine1: ', str(affine))
+
     # translate center of image to 0,0,0
     center_offset = np.array(data.shape) / 2
     affine = translate_image(affine, -center_offset)
-    #print('Affine - center offset: ', str(affine))
+    # print('Affine - center offset: ', str(affine))
 
     if flip_axis is not None:
         affine = flip_image(affine, flip_axis)
@@ -169,7 +178,7 @@ def random_flip_dimensions(n_dim, flip_factor):
 def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scale_deviation=None, rotate_deviation=None,
                  translate_deviation=None, flip=None, contrast_deviation=None, poisson_noise=None,
                  piecewise_affine=None, elastic_transform=None, intensity_multiplication_range=None,
-                 gaussian_filter=None, data_range=None, truth_range=None, prev_truth_range=None):
+                 gaussian_filter=None, coarse_dropout=None, data_range=None, truth_range=None, prev_truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
@@ -225,6 +234,9 @@ def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scal
         intensity_multiplication = np.random.random() * (b - a) + a
     else:
         intensity_multiplication = 1
+    if coarse_dropout is not None:
+        coarse_dropout_rate = coarse_dropout['rate']
+        coarse_dropout_size = coarse_dropout['size_percent']
 
     image, affine = data, np.eye(4)
     distorted_data, distorted_affine = distort_image(image, affine,
@@ -277,6 +289,9 @@ def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scal
 
     if apply_poisson_noise:
         data = shot_noise(data)
+
+    if coarse_dropout is not None:
+        apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size, per_channel=coarse_dropout["per_channel"])
 
     return data, truth_data, prev_truth_data
 

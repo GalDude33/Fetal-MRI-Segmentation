@@ -20,7 +20,7 @@ parser.add_argument("--overwrite_config", help="overwrite saved config",
 parser.add_argument("--config_dir", help="specifies config dir path",
                     type=str, required=True)
 parser.add_argument("--split_dir", help="specifies config dir path",
-                    type=str, required=True)
+                    type=str, required=False)
 opts = parser.parse_args()
 
 # Load previous config if exists
@@ -97,9 +97,10 @@ else:
         },
         "intensity_multiplication": 0.2,
         "poisson_noise": 0.2,
-        "gaussian_filter": {
-            'max_sigma': 0.5,
-            'prob': 0.5,
+        "coarse_dropout": {
+            "rate": 0.2,
+            "size_percent": [0.10, 0.30],
+            "per_channel": True
         }
     }
     config["augment"] = config["augment"] if any(config["augment"].values()) else None

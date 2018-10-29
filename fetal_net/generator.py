@@ -265,6 +265,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
                                                                                           None),
                                                poisson_noise=augment.get("poisson_noise", None),
                                                gaussian_filter=augment.get("gaussian_filter", None),
+                                               coarse_dropout=augment.get("coarse_dropout", None),
                                                data_range=data_range, truth_range=truth_range,
                                                prev_truth_range=prev_truth_range)
     else:
