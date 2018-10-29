@@ -56,7 +56,7 @@ def get_label_dice_coefficient_function(label_index):
     return f
 
 
-def dice_and_xent(y_true, y_pred, xent_weight, weight_mask=None):
+def dice_and_xent(y_true, y_pred, xent_weight=1.0, weight_mask=None):
     return dice_coef_loss(y_true, y_pred) + \
            xent_weight * weighted_cross_entropy_loss(y_true, y_pred, weight_mask)
 
