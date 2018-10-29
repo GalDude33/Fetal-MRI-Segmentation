@@ -8,7 +8,7 @@ from keras.models import load_model
 
 from fetal_net.metrics import (dice_coefficient, dice_coefficient_loss, dice_coef, dice_coef_loss,
                                weighted_dice_coefficient_loss, weighted_dice_coefficient,
-                               vod_coefficient, vod_coefficient_loss)
+                               vod_coefficient, vod_coefficient_loss, focal_loss)
 
 K.set_image_dim_ordering('th')
 from multiprocessing import cpu_count
@@ -44,7 +44,9 @@ def load_old_model(model_file, verbose=True):
                       'weighted_dice_coefficient': weighted_dice_coefficient,
                       'weighted_dice_coefficient_loss': weighted_dice_coefficient_loss,
                       'vod_coefficient': vod_coefficient,
-                      'vod_coefficient_loss': vod_coefficient_loss}
+                      'vod_coefficient_loss': vod_coefficient_loss,
+                      'focal_loss': focal_loss,
+                      'focal_loss_fixed': focal_loss}
     try:
         from keras_contrib.layers import InstanceNormalization
         custom_objects["InstanceNormalization"] = InstanceNormalization
