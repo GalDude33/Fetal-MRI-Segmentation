@@ -31,7 +31,7 @@ if Path(os.path.join(opts.config_dir, 'config.json')).exists() and not opts.over
 else:
     config = dict()
     config["base_dir"] = opts.config_dir
-    config["split_dir"] = opts.split_dir
+    config["split_dir"] = './debug_normnet'
 
     Path(config["base_dir"]).mkdir(parents=True, exist_ok=True)
     Path(config["split_dir"]).mkdir(parents=True, exist_ok=True)
@@ -46,13 +46,18 @@ else:
     config["truth_downsample"] = None  # 96
     config["truth_crop"] = None  # if true will crop sample else resize
 
-    config["model_name"] = 'unet_model_3d' # 'isensee2017_model_3d'  # 'isensee2017_model'  # 'unet_model_2d'
+    config["model_name"] = {
+        1: 'unet_model_3d',
+        2: 'isensee2017_model_3d',
+        3: 'unet_model_2d',
+        4: 'isensee2017_model',
+        5: 'norm_net_model'
+    }[5]
 
     config["labels"] = (1,)  # the label numbers on the input image
     config["n_labels"] = len(config["labels"])
     config["all_modalities"] = ["volume"]
-    config["training_modalities"] = config[
-        "all_modalities"]  # change this if you want to only use some of the modalities
+    config["training_modalities"] = config["all_modalities"]  # change this if you want to only use some of the modalities
     config["nb_channels"] = len(config["training_modalities"])
     config["input_shape"] = tuple(list(config["patch_shape"]) +
                                   [config["patch_depth"] + (
@@ -74,7 +79,9 @@ else:
     config["3D"] = True  # will make the target one_hot
     config["loss"] = {
         0: 'binary_crossentropy_loss',
-        1: 'dice_coeeficient_loss'
+        1: 'dice_coefficient_loss',
+        2: 'focal_loss',
+        3: 'dice_and_xent'
     }[1]
 
     config["augment"] = {
@@ -110,12 +117,13 @@ else:
     config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
     config["drop_easy_patches_train"] = True
     config["drop_easy_patches_val"] = False
+    config["dropout_rate"]=0
 
     config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
     config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
-    config["training_file"] = os.path.join(opts.split_dir, "training_ids.pkl")
-    config["validation_file"] = os.path.join(opts.split_dir, "validation_ids.pkl")
-    config["test_file"] = os.path.join(opts.split_dir, "test_ids.pkl")
+    config["training_file"] = os.path.join(config["split_dir"], "training_ids.pkl")
+    config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.pkl")
+    config["test_file"] = os.path.join(config["split_dir"], "test_ids.pkl")
     config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
 
     config['scans_dir'] = "../../Datasets/Cutted_to_fetus"
@@ -129,7 +137,8 @@ else:
     if config['3D']:
         config["input_shape"] = [1] + list(config["input_shape"])
 
-    config["ext"] = ".gz"
+    config["ext"] = "" #"".gz"
+    config["old_model"] = '/home/galdude33/Lab/workspace/fetal_envelope2/brats/debug_normnet/old_model.h5'
 
     with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
         json.dump(config, f, indent=2)
@@ -175,7 +184,8 @@ def main(overwrite=False):
         model = model_func(input_shape=config["input_shape"],
                            initial_learning_rate=config["initial_learning_rate"],
                            **{'dropout_rate': config['dropout_rate'],
-                              'loss_function': loss_func})
+                              'loss_function': loss_func,
+                              'old_model_path': config['old_model']})
     model.summary()
 
     # get training and testing generators
