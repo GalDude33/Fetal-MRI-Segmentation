@@ -49,21 +49,21 @@ else:
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
     config["validation_split"] = 0.90  # portion of the data that will be used for training %
 
-    # Model params (3D)
-    config["patch_shape"] = (96, 96)  # switch to None to train on the whole image
-    config["patch_depth"] = 64
-    config["truth_index"] = 0
-    config["truth_size"] = 64
     config["3D"] = True  # Enable for 3D Models
-    model_name = 'isensee'  # or 'unet'
-
-    # Model params (2D) - should increase "batch_size" and "patches_per_epoch"
-    # config["patch_shape"] = (96, 96)  # switch to None to train on the whole image
-    # config["patch_depth"] = 5
-    # config["truth_index"] = 2
-    # config["truth_size"] = 1
-    # config["3D"] = False  # Enable for 3D Models
-    # model_name = 'unet' # or 'isensee'
+    if config["3D"]:
+        # Model params (3D)
+        config["patch_shape"] = (96, 96)  # switch to None to train on the whole image
+        config["patch_depth"] = 64
+        config["truth_index"] = 0
+        config["truth_size"] = 64
+        model_name = 'isensee'  # or 'unet'
+    else:
+        #Model params (2D) - should increase "batch_size" and "patches_per_epoch"
+        config["patch_shape"] = (96, 96)  # switch to None to train on the whole image
+        config["patch_depth"] = 5
+        config["truth_index"] = 2
+        config["truth_size"] = 1
+        model_name = 'unet' # or 'isensee'
 
     # choose model
     config["model_name"] = {
