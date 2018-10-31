@@ -1,3 +1,6 @@
+imgaug
+scikit-image
+SimpleITK
 scipy
 pandas
 matplotlib

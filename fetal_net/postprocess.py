@@ -10,7 +10,7 @@ def get_main_connected_component(data):
     return labeled_array == i
 
 
-def postprocess_prediction(pred, gaussian_std=2, threshold=0.4, fill_holes=True, connected_component=True):
+def postprocess_prediction(pred, gaussian_std=1, threshold=0.5, fill_holes=True, connected_component=True):
     pred = gaussian_filter(pred, gaussian_std) > threshold
     if fill_holes:
         pred = binary_fill_holes(pred)

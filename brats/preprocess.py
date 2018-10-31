@@ -2,7 +2,6 @@
 Tools for converting, normalizing, and fixing the brats data.
 """
 
-
 import glob
 import os
 import warnings
@@ -12,7 +11,8 @@ import SimpleITK as sitk
 import numpy as np
 from nipype.interfaces.ants import N4BiasFieldCorrection
 
-from brats.train_fetal import config
+
+# from brats.train_fetal import config
 
 
 def append_basename(in_file, append):
@@ -45,6 +45,14 @@ def get_background_mask(in_folder, out_file, truth_name="GlistrBoost_ManuallyCor
 def convert_image_format(in_file, out_file):
     sitk.WriteImage(sitk.ReadImage(in_file), out_file)
     return out_file
+
+
+def window_intensities_data(data, min_percent=1, max_percent=99):
+    image = sitk.GetImageFromArray(data)
+    image = sitk.IntensityWindowing(image,
+                                    np.percentile(data, min_percent),
+                                    np.percentile(data, max_percent))
+    return sitk.GetArrayFromImage(image)
 
 
 def window_intensities(in_file, out_file, min_percent=1, max_percent=99):
@@ -153,6 +161,6 @@ def convert_brats_data(brats_folder, out_folder, overwrite=False, no_bias_correc
             if not os.path.exists(new_subject_folder) or overwrite:
                 if not os.path.exists(new_subject_folder):
                     os.makedirs(new_subject_folder)
-                print('subject_folder: '+subject_folder)
+                print('subject_folder: ' + subject_folder)
                 convert_brats_folder(subject_folder, new_subject_folder,
                                      no_bias_correction_modalities=no_bias_correction_modalities)

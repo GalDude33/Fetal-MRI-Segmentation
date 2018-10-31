@@ -4,7 +4,7 @@ import numpy as np
 import tables
 
 from fetal_net.utils.utils import read_img
-from .normalize import normalize_data_storage
+from .normalize import normalize_data_storage, normalize_data_storage_each
 
 
 def create_data_file(out_file, n_samples):
@@ -29,7 +29,7 @@ def add_data_to_storage(data_storage, truth_storage, subject_data, truth_dtype):
 
 
 def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
-                       subject_ids=None, normalize=True):
+                       subject_ids=None, normalize='all'):
     """
     Takes in a set of training images and writes those images to an hdf5 file.
     :param training_data_files: List of tuples containing the training data files. The modalities should be listed in
@@ -52,10 +52,15 @@ def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
                              truth_dtype=truth_dtype)
     if subject_ids:
         hdf5_file.create_array(hdf5_file.root, 'subject_ids', obj=subject_ids)
-    if normalize:
-        normalize_data_storage(data_storage)
+    if isinstance(normalize, str):
+        _, mean, std = {
+            'all': normalize_data_storage,
+            'each': normalize_data_storage_each
+        }[normalize](data_storage)
+    else:
+        mean, std = None, None
     hdf5_file.close()
-    return out_file
+    return out_file, (mean, std)
 
 
 def open_data_file(filename, readwrite="r"):

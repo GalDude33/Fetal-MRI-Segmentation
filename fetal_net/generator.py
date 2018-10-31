@@ -3,6 +3,7 @@ import random
 import numpy as np
 from keras.utils import to_categorical
 
+from brats.utils import AttributeDict as att_dict
 from fetal_net.utils.utils import resize
 from .augment import augment_data, random_permutation_x_y, get_image
 from .utils import pickle_dump, pickle_load
@@ -12,8 +13,17 @@ from .utils.patches import get_patch_from_3d_data
 class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
-        self.data_min = [np.percentile(_, q=1) for _ in self.data]
         self.truth = [_ for _ in file.root.truth]
+        self.stats = att_dict(
+            p1=[np.percentile(_, q=1) for _ in self.data],
+            min=[np.min(_) for _ in self.data],
+            max=[np.max(_) for _ in self.data],
+        )
+        self.subject_ids = [_ for _ in file.root.subject_ids]
+
+        # self.data_p1 = [np.percentile(_, q=1) for _ in self.data]
+        # self.data_min = [np.min(_) for _ in self.data]
+        # self.data_max = [np.max(_) for _ in self.data]
         self.root = self
 
 
@@ -22,21 +32,38 @@ def pad_samples(data_file, patch_shape, truth_downsample):
                     patch_shape[1] // truth_downsample,
                     1]
     padding = np.ceil(np.subtract(patch_shape, output_shape) / 2).astype(int)
+
     data_file.root.data = \
         [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=data_min)
-         for data, data_min in zip(data_file.root.data, data_file.root.data_min)]
+         for data, data_min in zip(data_file.data, data_file.stats.min)]
     data_file.root.truth = \
         [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
-         for truth in data_file.root.truth]
+         for truth in data_file.truth]
+
+    data_file.root.data = \
+        [np.pad(data,
+                [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape) + 1, 0) / 2).astype(int)],
+                'constant', constant_values=data_min)
+         for data, data_min in zip(data_file.data, data_file.stats.min)]
+    data_file.root.truth = \
+        [np.pad(truth,
+                [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
+                'constant', constant_values=0)
+         for truth in data_file.truth]
 
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
+                                           test_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
-                                           validation_batch_size=None, skip_blank_train=True, skip_blank_val=False, truth_index=-1,
-                                           truth_downsample=None, truth_crop=True, patches_per_img_per_batch=1,
-                                           categorical=True):
+                                           validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
+                                           truth_index=-1, truth_size=1, truth_downsample=None, truth_crop=True,
+                                           patches_per_epoch=1,
+                                           categorical=True, is3d=False,
+                                           prev_truth_index=None, prev_truth_size=None,
+                                           drop_easy_patches_train=False, drop_easy_patches_val=False):
     """
     Creates the training and validation generators that can be used when training the model.
+    :param prev_truth_inedx:
     :param categorical:
     :param truth_downsample:
     :param skip_blank: If True, any blank (all-zero) label images/patches will be skipped by the data generator.
@@ -71,37 +98,43 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
 
     data_file = DataFileDummy(data_file)
 
-    pad_samples(data_file, patch_shape, truth_downsample)
+    pad_samples(data_file, patch_shape, truth_downsample or 1)
 
-    training_list, validation_list = get_validation_split(data_file,
-                                                          data_split=data_split,
-                                                          overwrite=overwrite,
-                                                          training_file=training_keys_file,
-                                                          validation_file=validation_keys_file)
+    training_list, validation_list, test_list = get_validation_split(data_file,
+                                                                     data_split=data_split,
+                                                                     overwrite=overwrite,
+                                                                     training_file=training_keys_file,
+                                                                     validation_file=validation_keys_file,
+                                                                     test_file=test_keys_file)
 
-    training_generator = data_generator(data_file, training_list,
-                                        batch_size=batch_size,
-                                        n_labels=n_labels,
-                                        labels=labels,
-                                        augment=augment,
-                                        patch_shape=patch_shape,
-                                        skip_blank=skip_blank_train,
-                                        truth_index=truth_index,
-                                        truth_downsample=truth_downsample,
-                                        truth_crop=truth_crop,
-                                        categorical=categorical)
-    validation_generator = data_generator(data_file, validation_list, batch_size=validation_batch_size,
-                                          n_labels=n_labels, labels=labels, patch_shape=patch_shape,
-                                          skip_blank=skip_blank_val, truth_index=truth_index,
-                                          truth_downsample=truth_downsample,
-                                          truth_crop=truth_crop,
-                                          categorical=categorical)
+    print("Training: {}".format([data_file.subject_ids[_].decode() for _ in training_list]))
+    print("Validation: {}".format([data_file.subject_ids[_].decode() for _ in validation_list]))
+    print("Test: {}".format([data_file.subject_ids[_].decode() for _ in test_list]))
+
+    training_generator = \
+        data_generator(data_file, training_list, batch_size=batch_size, augment=augment,
+                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                       skip_blank=skip_blank_train,
+                       truth_index=truth_index, truth_size=truth_size,
+                       truth_downsample=truth_downsample, truth_crop=truth_crop,
+                       categorical=categorical, is3d=is3d,
+                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                       drop_easy_patches=drop_easy_patches_train)
+    validation_generator = \
+        data_generator(data_file, validation_list, batch_size=validation_batch_size,
+                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                       skip_blank=skip_blank_val,
+                       truth_index=truth_index, truth_size=truth_size,
+                       truth_downsample=truth_downsample, truth_crop=truth_crop,
+                       categorical=categorical, is3d=is3d,
+                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                       drop_easy_patches=drop_easy_patches_val)
 
     # Set the number of training and testing samples per epoch correctly
-    num_training_steps = patches_per_img_per_batch * get_number_of_steps(len(training_list), batch_size)
+    num_training_steps = patches_per_epoch // batch_size
     print("Number of training steps: ", num_training_steps)
 
-    num_validation_steps = patches_per_img_per_batch * get_number_of_steps(len(validation_list), validation_batch_size)
+    num_validation_steps = patches_per_epoch // batch_size
     print("Number of validation steps: ", num_validation_steps)
 
     return training_generator, validation_generator, num_training_steps, num_validation_steps
@@ -116,27 +149,31 @@ def get_number_of_steps(n_samples, batch_size):
         return n_samples // batch_size + 1
 
 
-def get_validation_split(data_file, training_file, validation_file, data_split=0.8, overwrite=False):
+def get_validation_split(data_file, training_file, validation_file, test_file, data_split=0.8, overwrite=False):
     """
     Splits the data into the training and validation indices list.
     :param data_file: pytables hdf5 data file
     :param training_file:
     :param validation_file:
     :param data_split:
-    :param overwrite:
+    :param o
+    verwrite:
     :return:
     """
     if overwrite or not os.path.exists(training_file):
         print("Creating validation split...")
         nb_samples = len(data_file.root.data)
         sample_list = list(range(nb_samples))
+        random.shuffle(sample_list)
+        test_list = [sample_list.pop()]
         training_list, validation_list = split_list(sample_list, split=data_split)
         pickle_dump(training_list, training_file)
         pickle_dump(validation_list, validation_file)
-        return training_list, validation_list
+        pickle_dump(test_list, test_file)
+        return training_list, validation_list, test_list
     else:
         print("Loading previous validation split...")
-        return pickle_load(training_file), pickle_load(validation_file)
+        return pickle_load(training_file), pickle_load(validation_file), pickle_load(test_file)
 
 
 def split_list(input_list, split=0.8, shuffle_list=True):
@@ -150,6 +187,7 @@ def split_list(input_list, split=0.8, shuffle_list=True):
 
 def random_list_generator(index_list):
     while True:
+        np.random.seed()
         yield from random.sample(index_list, len(index_list))
 
 
@@ -159,8 +197,9 @@ def list_generator(index_list):
 
 
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
-                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_downsample=None, truth_crop=True,
-                   categorical=True):
+                   shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_size=1, truth_downsample=None,
+                   truth_crop=True, categorical=True, prev_truth_index=None, prev_truth_size=None,
+                   drop_easy_patches=False, is3d=False):
     index_generator = random_list_generator(index_list) if shuffle_index_list else list_generator(index_list)
     while True:
         x_list = list()
@@ -170,15 +209,19 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
             index = next(index_generator)
             add_data(x_list, y_list, data_file, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
-                     truth_index=truth_index, truth_downsample=truth_downsample,
-                     truth_crop=truth_crop)
-        yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical)
+                     truth_index=truth_index, truth_size=truth_size, truth_downsample=truth_downsample,
+                     truth_crop=truth_crop, prev_truth_index=prev_truth_index,
+                     prev_truth_size=prev_truth_size, drop_easy_patches=drop_easy_patches)
+        yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical, is3d=is3d)
 
 
-def add_data(x_list, y_list, data_file, index, truth_index,
-             augment=None, patch_shape=None, skip_blank=True, truth_downsample=None, truth_crop=True):
+def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
+             skip_blank=True,
+             truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None,
+             drop_easy_patches=False):
     """
     Adds data from the data file to the given lists of feature and target data
+    :param prev_truth_index:
     :param truth_downsample:
     :param skip_blank: Data will not be added if the truth vector is all zeros (default is True).
     :param patch_shape: Shape of the patch to add to the data lists. If None, the whole image will be added.
@@ -199,16 +242,43 @@ def add_data(x_list, y_list, data_file, index, truth_index,
         data_range = [(start, start + size) for start, size in zip(patch_corner, patch_shape)]
 
         truth_range = data_range[:2] + [(patch_corner[2] + truth_index,
-                                         patch_corner[2] + truth_index + 1)]
-        data, truth = augment_data(data, truth,
-                                   data_min=data_file.root.data_min[index],
-                                   flip=augment['flip'],
-                                   scale_deviation=augment['scale'],
-                                   rotate_deviation=augment['rotate'],
-                                   translate_deviation=augment['translate'],
-                                   data_range=data_range, truth_range=truth_range)
+                                         patch_corner[2] + truth_index + truth_size)]
+
+        if prev_truth_index is not None:
+            prev_truth_range = data_range[:2] + [(patch_corner[2] + prev_truth_index,
+                                                  patch_corner[2] + prev_truth_index + prev_truth_size)]
+        else:
+            prev_truth_range = None
+
+        data, truth, prev_truth = augment_data(data, truth,
+                                               data_min=data_file.stats.min[index], data_max=data_file.stats.max[index],
+                                               scale_deviation=augment.get('scale', None),
+                                               iso_scale_deviation=augment.get('iso_scale', None),
+                                               rotate_deviation=augment.get('rotate', None),
+                                               translate_deviation=augment.get('translate', None),
+                                               flip=augment.get('flip', None),
+                                               contrast_deviation=augment.get('contrast', None),
+                                               piecewise_affine=augment.get('piecewise_affine', None),
+                                               elastic_transform=augment.get('elastic_transform', None),
+                                               intensity_multiplication_range=augment.get('intensity_multiplication', None),
+                                               poisson_noise=augment.get("poisson_noise", None),
+                                               gaussian_filter=augment.get("gaussian_filter", None),
+                                               coarse_dropout=augment.get("coarse_dropout", None),
+                                               data_range=data_range, truth_range=truth_range,
+                                               prev_truth_range=prev_truth_range)
     else:
-        data, truth = extract_random_patch(data, patch_shape, truth, truth_index)
+        data, truth, prev_truth = \
+            extract_patch(data, patch_corner, patch_shape, truth,
+                          truth_index=truth_index, truth_size=truth_size,
+                          prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size)
+
+    if prev_truth is not None:
+        data = np.concatenate([data, prev_truth], axis=-1)
+
+    if drop_easy_patches:
+        truth_mean = np.mean(truth[16:-16, 16:-16, :])
+        if 1 - np.abs(truth_mean - 0.5) < np.random.random():
+            return
 
     if truth_downsample is not None and truth_downsample > 1:
         truth_shape = patch_shape[:-1] + (1,)
@@ -226,23 +296,30 @@ def add_data(x_list, y_list, data_file, index, truth_index,
         y_list.append(truth)
 
 
-def extract_patch(data, patch_corner, patch_shape, truth, truth_index):
+def extract_patch(data, patch_corner, patch_shape, truth, truth_index, truth_size, prev_truth_index=None,
+                  prev_truth_size=1):
     data = get_patch_from_3d_data(data, patch_shape, patch_corner)
-    truth_shape = patch_shape[:-1] + (1,)
-    truth = get_patch_from_3d_data(truth,
-                                   truth_shape,
-                                   patch_corner + np.array((0, 0, truth_index)))
-    return data, truth
+    real_truth = get_patch_from_3d_data(truth,
+                                        patch_shape[:-1] + (truth_size,),
+                                        patch_corner + np.array((0, 0, truth_index)))
+    if prev_truth_index is not None:
+        prev_truth = get_patch_from_3d_data(truth,
+                                            patch_shape[:-1] + (prev_truth_size,),
+                                            patch_corner + np.array((0, 0, prev_truth_index)))
+    else:
+        prev_truth = None
+
+    return data, real_truth, prev_truth
 
 
-def extract_random_patch(data, patch_shape, truth, truth_index):
+def extract_random_patch(data, patch_shape, truth, truth_index, prev_truth_index):
     # cut relevant patch
     patch_corner = [
         np.random.randint(low=low, high=high)
         for low, high in zip((0, 0, 0),  # -np.array(patch_shape) // 2,
                              truth.shape - np.array(patch_shape))  # - np.array(patch_shape) // 2)
     ]
-    return extract_patch(data, patch_corner, patch_shape, truth, truth_index)
+    return extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index)
 
 
 def get_data_from_file(data_file, index, patch_shape=None):
@@ -256,7 +333,7 @@ def get_data_from_file(data_file, index, patch_shape=None):
     return x, y
 
 
-def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True):
+def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True, is3d=False):
     x = np.asarray(x_list)
     y = np.asarray(y_list)
     # if n_labels == 1:
@@ -265,6 +342,9 @@ def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True):
     #     y = get_multi_class_labels(y, n_labels=n_labels, labels=labels)
     if categorical:
         y = to_categorical(y, 2)
+    if is3d:
+        x = np.expand_dims(x, 1)
+        y = np.expand_dims(y, 1)
     return x, y
 
 

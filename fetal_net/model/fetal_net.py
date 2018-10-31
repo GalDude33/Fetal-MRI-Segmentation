@@ -6,13 +6,13 @@ from keras.losses import binary_crossentropy
 from keras.optimizers import RMSprop
 from tensorflow import Tensor
 
-from ..metrics import dice_coefficient_loss
+from fetal_net.metrics import vod_coefficient
 
 
-def fetal_envelope_model(input_shape=(5, 128, 128),
+def fetal_envelope_model(input_shape=(5, 64, 64),
                          optimizer=RMSprop,
                          initial_learning_rate=5e-4,
-                         loss_function='binary_cross_entropy'):
+                         loss_function=binary_crossentropy):
     """
     :param input_shape:
     :param n_base_filters:
@@ -63,22 +63,16 @@ def fetal_envelope_model(input_shape=(5, 128, 128),
     # net = addConvBlock(net, opts, '4', 'fc', 16, 1000, 'pool', false, 'relu', false, 'bnorm', bnorm);
     fc_block_1 = fc_block(conv_block_3, 1000)
 
-    if loss_function == 'binary_cross_entropy':
-        # net = addConvBlock(net, opts, '5', 'fc', 1000, 2, 'pool', false, 'relu', false, 'bnorm', false);
-        fc_block_2 = fc_block(fc_block_1, 2, batch_norm=False)
+    # net = addConvBlock(net, opts, '5', 'fc', 1000, 2, 'pool', false, 'relu', false, 'bnorm', false); 
+    fc_block_2 = fc_block(fc_block_1, 2, batch_norm=False)
 
-        # net.layers{end + 1} = struct('type', 'softmax');
-        output_layer = Softmax(name='softmax_last_layer')(fc_block_2)
-        loss = binary_crossentropy
-    else:
-        fc_block_2 = fc_block(fc_block_1, 1, batch_norm=False, activation='sigmoid')
-        output_layer = fc_block_2
-        loss = dice_coefficient_loss
+    # net.layers{end + 1} = struct('type', 'softmax');
+    output_layer = Softmax(name='softmax_last_layer')(fc_block_2)
 
     model = Model(inputs=input_layer, output=output_layer)
     model.compile(optimizer=optimizer(lr=initial_learning_rate),
-                  loss=loss,
-                  metrics=['acc'])  # 'binary_crossentropy')#loss_function)
+                  loss=loss_function,
+                  metrics=['binary_accuracy', vod_coefficient])  # 'binary_crossentropy')#loss_function)
     return model
 
 # Sequential Model

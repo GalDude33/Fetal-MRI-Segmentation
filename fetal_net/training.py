@@ -1,4 +1,5 @@
 import math
+import os
 from functools import partial
 
 from keras import backend as K
@@ -6,7 +7,8 @@ from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, R
 from keras.models import load_model
 
 from fetal_net.metrics import (dice_coefficient, dice_coefficient_loss, dice_coef, dice_coef_loss,
-                               weighted_dice_coefficient_loss, weighted_dice_coefficient)
+                               weighted_dice_coefficient_loss, weighted_dice_coefficient,
+                               vod_coefficient, vod_coefficient_loss, focal_loss, dice_and_xent)
 
 K.set_image_dim_ordering('th')
 from multiprocessing import cpu_count
@@ -21,7 +23,8 @@ def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0
                   learning_rate_patience=50, logging_file="training.log", verbosity=1,
                   early_stopping_patience=None):
     callbacks = list()
-    callbacks.append(ModelCheckpoint(model_file, save_best_only=True, verbose=verbosity))
+    callbacks.append(ModelCheckpoint(model_file + '-epoch{epoch:02d}-loss{val_loss:.3f}-acc{val_binary_accuracy:.3f}.h5',
+                                     save_best_only=True, verbose=verbosity, monitor='val_loss'))
     callbacks.append(CSVLogger(logging_file, append=True))
     if learning_rate_epochs:
         callbacks.append(LearningRateScheduler(partial(step_decay, initial_lrate=initial_learning_rate,
@@ -34,18 +37,25 @@ def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0
     return callbacks
 
 
-def load_old_model(model_file):
+def load_old_model(model_file, verbose=True):
     print("Loading pre-trained model")
     custom_objects = {'dice_coefficient_loss': dice_coefficient_loss, 'dice_coefficient': dice_coefficient,
                       'dice_coef': dice_coef, 'dice_coef_loss': dice_coef_loss,
                       'weighted_dice_coefficient': weighted_dice_coefficient,
-                      'weighted_dice_coefficient_loss': weighted_dice_coefficient_loss}
+                      'weighted_dice_coefficient_loss': weighted_dice_coefficient_loss,
+                      'vod_coefficient': vod_coefficient,
+                      'vod_coefficient_loss': vod_coefficient_loss,
+                      'focal_loss': focal_loss,
+                      'focal_loss_fixed': focal_loss,
+                      'dice_and_xent': dice_and_xent}
     try:
         from keras_contrib.layers import InstanceNormalization
         custom_objects["InstanceNormalization"] = InstanceNormalization
     except ImportError:
         pass
     try:
+        if verbose:
+            print('Loading model from {}...'.format(model_file))
         return load_model(model_file, custom_objects=custom_objects)
     except ValueError as error:
         if 'InstanceNormalization' in str(error):
@@ -57,7 +67,7 @@ def load_old_model(model_file):
 
 def train_model(model, model_file, training_generator, validation_generator, steps_per_epoch, validation_steps,
                 initial_learning_rate=0.001, learning_rate_drop=0.5, learning_rate_epochs=None, n_epochs=500,
-                learning_rate_patience=20, early_stopping_patience=None):
+                learning_rate_patience=20, early_stopping_patience=None, output_folder='.'):
     """
     Train a Keras model.
     :param early_stopping_patience: If set, training will end early if the validation loss does not improve after the
@@ -89,4 +99,5 @@ def train_model(model, model_file, training_generator, validation_generator, ste
                                                 learning_rate_drop=learning_rate_drop,
                                                 learning_rate_epochs=learning_rate_epochs,
                                                 learning_rate_patience=learning_rate_patience,
-                                                early_stopping_patience=early_stopping_patience))
+                                                early_stopping_patience=early_stopping_patience,
+                                                logging_file=os.path.join(output_folder, 'training')))

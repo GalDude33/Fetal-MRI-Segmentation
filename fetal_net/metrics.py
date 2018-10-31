@@ -1,6 +1,7 @@
 from functools import partial
-
+from keras.losses import binary_crossentropy
 from keras import backend as K
+import tensorflow as tf
 
 
 def dice_coefficient(y_true, y_pred, smooth=1.):
@@ -14,13 +15,16 @@ def vod_coefficient(y_true, y_pred, smooth=1.):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
-    union = intersection + K.sum((1-y_true_f * y_pred_f) * y_true_f) \
-                         + K.sum((1-y_true_f * y_pred_f) * y_pred_f)
+    union = K.sum(y_true_f) + K.sum(y_pred_f) - intersection
     return (intersection + smooth) / (union + smooth)
 
 
 def dice_coefficient_loss(y_true, y_pred):
     return -dice_coefficient(y_true, y_pred)
+
+
+def vod_coefficient_loss(y_true, y_pred):
+    return -vod_coefficient(y_true, y_pred)
 
 
 def weighted_dice_coefficient(y_true, y_pred, axis=(-3, -2, -1), smooth=0.00001):
@@ -52,5 +56,29 @@ def get_label_dice_coefficient_function(label_index):
     return f
 
 
+def dice_and_xent(y_true, y_pred, xent_weight=1.0, weight_mask=None):
+    return dice_coef_loss(y_true, y_pred) + \
+           xent_weight * weighted_cross_entropy_loss(y_true, y_pred, weight_mask)
+
+
+def weighted_cross_entropy_loss(y_true, y_pred, weight_mask=None):
+    xent = K.binary_crossentropy(y_true, y_pred)
+    if weight_mask is not None:
+        xent = K.prod(weight_mask, xent)
+    return K.mean(xent)
+
+
+def _focal_loss(gamma=2., alpha=.5):
+    def focal_loss_fixed(y_true, y_pred):
+        pt_1 = tf.where(tf.equal(y_true, 1), y_pred, tf.ones_like(y_pred))
+        pt_0 = tf.where(tf.equal(y_true, 0), y_pred, tf.zeros_like(y_pred))
+        return -K.sum(alpha * K.pow(1. - pt_1, gamma) * K.log(pt_1)) - K.sum(
+            (1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
+
+    return focal_loss_fixed
+
+
 dice_coef = dice_coefficient
 dice_coef_loss = dice_coefficient_loss
+binary_crossentropy_loss = binary_crossentropy
+focal_loss = _focal_loss()

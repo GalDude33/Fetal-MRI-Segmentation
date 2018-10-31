@@ -1,10 +1,15 @@
 import numpy as np
-import nibabel as nib
-from nilearn.image import new_img_like, resample_to_img
+from nilearn.image import resample_to_img
 import random
 import itertools
 
+from skimage.exposure import exposure
+from skimage.filters import gaussian
+from skimage.util import random_noise
+
+from brats.utils import MinMaxScaler
 from fetal_net.utils.utils import get_image, interpolate_affine_range
+from imgaug import augmenters as iaa
 
 
 def scale_image(affine, scale_factor):
@@ -53,9 +58,9 @@ def rotate_image_y(affine, rotate_factor):
 def rotate_image_z(affine, rotate_factor):
     sin_gamma = np.sin(rotate_factor)
     cos_gamma = np.cos(rotate_factor)
-    rotation_affine = np.array([[1, 0, 0, 0],
-                                [0, cos_gamma, -sin_gamma, 0],
-                                [0, sin_gamma, cos_gamma, 0],
+    rotation_affine = np.array([[cos_gamma, -sin_gamma, 0, 0],
+                                [sin_gamma, cos_gamma, 0, 0],
+                                [0, 0, 1, 0],
                                 [0, 0, 0, 1]])
     new_affine = rotation_affine.dot(affine)
     return new_affine
@@ -66,7 +71,7 @@ def rotate_image(affine, rotate_angles):
 
     # apply rotations
     for i, rotate_angle in enumerate(rotate_angles):
-        if rotate_angle > 0:
+        if rotate_angle != 0:
             new_affine = rotate_image_axis(new_affine, rotate_angle, axis=i)
 
     return new_affine
@@ -81,6 +86,48 @@ def flip_image(affine, axis):
     return new_affine
 
 
+def shot_noise(data):
+    mm_scaler = MinMaxScaler((0, 1))
+    data = mm_scaler.fit_transform(data)
+    data = random_noise(data, mode='poisson', clip=True)
+    return mm_scaler.inverse_transform(data)
+
+
+def apply_gaussian_filter(data, sigma):
+    return gaussian(data, sigma=sigma)
+
+def apply_coarse_dropout(data, rate, size_percent, per_channel=True):
+    mm_scaler = MinMaxScaler((0, 255))
+    data = mm_scaler.fit_transform(data)
+    new_data = iaa.CoarseDropout(p=rate, size_percent=size_percent, per_channel=per_channel).augment_image(data)
+    return mm_scaler.inverse_transform(new_data)
+
+def contrast_augment(data, min_per, max_per):
+    # in_range = (np.percentile(data, q=min_per), np.percentile(data, q=max_per))
+    in_range = (min_per, max_per)
+    return exposure.rescale_intensity(data, in_range=in_range, out_range='image')
+
+
+def apply_piecewise_affine(data, truth, scale):
+    rs = np.random.RandomState()
+    vol_pa_transform = iaa.PiecewiseAffine(scale, nb_cols=2, nb_rows=2, order=1, random_state=rs, deterministic=True)
+    mask_pa_transform = iaa.PiecewiseAffine(scale, nb_cols=2, nb_rows=2, order=0, random_state=rs, deterministic=True)
+    data = vol_pa_transform.augment_image(data)
+    truth = mask_pa_transform.augment_image(truth)
+    return data, truth
+
+
+def apply_elastic_transform(data, truth, alpha, sigma):
+    rs = np.random.RandomState()
+    vol_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=1, random_state=rs, deterministic=True,
+                                                 mode="nearest")
+    mask_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=0, random_state=rs,
+                                                  deterministic=True, mode="nearest")
+    data = vol_et_transform.augment_image(data)
+    truth = mask_et_transform.augment_image(truth)
+    return data, truth
+
+
 def random_scale_factor(n_dim=3, mean=1, std=0.25):
     return np.random.normal(mean, std, n_dim)
 
@@ -90,7 +137,7 @@ def random_translate_factor(n_dim=3, min=0, max=7):
 
 
 def random_rotation_angle(n_dim=3, mean=0, std=5):
-    return np.random.uniform(low=mean-np.array(std), high=mean+np.array(std), size=n_dim)
+    return np.random.uniform(low=mean - np.array(std), high=mean + np.array(std), size=n_dim)
 
 
 def random_boolean():
@@ -98,9 +145,12 @@ def random_boolean():
 
 
 def distort_image(data, affine, flip_axis=None, scale_factor=None, rotate_factor=None, translate_factor=None):
+    # print('Affine1: ', str(affine))
+
     # translate center of image to 0,0,0
     center_offset = np.array(data.shape) / 2
     affine = translate_image(affine, -center_offset)
+    # print('Affine - center offset: ', str(affine))
 
     if flip_axis is not None:
         affine = flip_image(affine, flip_axis)
@@ -125,13 +175,23 @@ def random_flip_dimensions(n_dim, flip_factor):
     ]
 
 
-def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=None, translate_deviation=None,
-                 flip=True, data_range=None, truth_range=None):
+def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scale_deviation=None, rotate_deviation=None,
+                 translate_deviation=None, flip=None, contrast_deviation=None, poisson_noise=None,
+                 piecewise_affine=None, elastic_transform=None, intensity_multiplication_range=None,
+                 gaussian_filter=None, coarse_dropout=None, data_range=None, truth_range=None, prev_truth_range=None):
     n_dim = len(truth.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
     else:
-        scale_factor = None
+        scale_factor = [1, 1, 1]
+    if iso_scale_deviation:
+        iso_scale_factor = np.random.uniform(1, iso_scale_deviation["max"])
+        if random_boolean():
+            iso_scale_factor = 1 / iso_scale_factor
+        scale_factor[0] *= iso_scale_factor
+        scale_factor[1] *= iso_scale_factor
+    else:
+        iso_scale_factor = None
     if rotate_deviation:
         rotate_factor = random_rotation_angle(n_dim, std=rotate_deviation)
         rotate_factor = np.deg2rad(rotate_factor)
@@ -143,8 +203,40 @@ def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=N
         flip_axis = None
     if translate_deviation is not None:
         translate_factor = random_translate_factor(n_dim, -np.array(translate_deviation), np.array(translate_deviation))
+        translate_factor[-1] = np.floor(translate_factor[-1])  # z-translate should be int
     else:
         translate_factor = None
+    if contrast_deviation is not None:
+        val_range = data_max - data_min
+        contrast_min_val = data_min + contrast_deviation["min_factor"] * np.random.uniform(-1, 1) * val_range
+        contrast_max_val = data_max + contrast_deviation["max_factor"] * np.random.uniform(-1, 1) * val_range
+    else:
+        contrast_min_val, contrast_max_val = None, None
+    if poisson_noise is not None:
+        apply_poisson_noise = poisson_noise > np.random.random()
+    else:
+        apply_poisson_noise = False
+    if gaussian_filter is not None and gaussian_filter["prob"] > 0:
+        gaussian_sigma = gaussian_filter["max_sigma"] * np.random.random()
+        apply_gaussian = gaussian_filter["prob"] > np.random.random()
+    else:
+        apply_gaussian, gaussian_sigma = False, None
+    if piecewise_affine is not None:
+        piecewise_affine_scale = np.random.random() * piecewise_affine["scale"]
+    else:
+        piecewise_affine_scale = 0
+    if elastic_transform is not None:
+        elastic_transform_scale = np.random.random() * elastic_transform["alpha"]
+    else:
+        elastic_transform_scale = 0
+    if intensity_multiplication_range is not None:
+        a, b = intensity_multiplication_range
+        intensity_multiplication = np.random.random() * (b - a) + a
+    else:
+        intensity_multiplication = 1
+    if coarse_dropout is not None:
+        coarse_dropout_rate = coarse_dropout['rate']
+        coarse_dropout_size = coarse_dropout['size_percent']
 
     image, affine = data, np.eye(4)
     distorted_data, distorted_affine = distort_image(image, affine,
@@ -171,9 +263,37 @@ def augment_data(data, truth, data_min, scale_deviation=None, rotate_deviation=N
                                      interpolation="nearest", copy=False,
                                      clip=True).get_data()
     else:
-        truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine, truth_range, order=0,
-                                              mode='constant', cval=0)
-    return data, truth_data
+        truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
+                                              truth_range, order=0, mode='constant', cval=0)
+
+    if prev_truth_range is None:
+        prev_truth_data = None
+    else:
+        prev_truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
+                                                   prev_truth_range, order=0, mode='constant', cval=0)
+
+    if piecewise_affine_scale > 0:
+        data, truth = apply_piecewise_affine(data, truth, piecewise_affine_scale)
+
+    if elastic_transform_scale > 0:
+        data, truth = apply_elastic_transform(data, truth, elastic_transform_scale, elastic_transform["sigma"])
+
+    if contrast_deviation is not None:
+        data = contrast_augment(data, contrast_min_val, contrast_max_val)
+
+    if intensity_multiplication != 1:
+        data = data * intensity_multiplication
+
+    if apply_gaussian:
+        data = apply_gaussian_filter(data, gaussian_sigma)
+
+    if apply_poisson_noise:
+        data = shot_noise(data)
+
+    if coarse_dropout is not None:
+        data = apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size, per_channel=coarse_dropout["per_channel"])
+
+    return data, truth_data, prev_truth_data
 
 
 def generate_permutation_keys():
