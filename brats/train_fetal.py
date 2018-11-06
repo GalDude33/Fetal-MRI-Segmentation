@@ -162,6 +162,7 @@ else:
     config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.pkl")
     config["test_file"] = os.path.join(config["split_dir"], "test_ids.pkl")
     config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
+    config["scale_data"] = None # (2,2,1)
 
     if config['3D']:
         config["input_shape"] = [1] + list(config["input_shape"])
@@ -196,7 +197,7 @@ def main(overwrite=False):
         training_files, subject_ids = fetch_training_data_files(return_subject_ids=True)
 
         _, (mean, std) = write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids,
-                                            normalize=config['normalization'])
+                                            normalize=config['normalization'], scale=config.get('scale_data', None))
         with open(os.path.join(config["base_dir"], 'norm_params.json'), mode='w') as f:
             json.dump({'mean': mean, 'std': std}, f)
 

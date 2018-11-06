@@ -3,7 +3,7 @@ import os
 import numpy as np
 import tables
 
-from fetal_net.utils.utils import read_img
+from fetal_net.utils.utils import read_img, resize
 from .normalize import normalize_data_storage, normalize_data_storage_each
 
 
@@ -15,9 +15,11 @@ def create_data_file(out_file, n_samples):
     return hdf5_file, data_storage, truth_storage
 
 
-def write_image_data_to_file(image_files, data_storage, truth_storage, truth_dtype=np.uint8):
+def write_image_data_to_file(image_files, data_storage, truth_storage, truth_dtype=np.uint8, scale=None):
     for set_of_files in image_files:
         images = [read_img(_) for _ in set_of_files]
+        if scale is not None:
+            images = [resize(_, np.divide(_.shape, scale)) for _ in images]
         subject_data = [image.get_data() for image in images]
         add_data_to_storage(data_storage, truth_storage, subject_data, truth_dtype)
     return data_storage, truth_storage
@@ -29,7 +31,7 @@ def add_data_to_storage(data_storage, truth_storage, subject_data, truth_dtype):
 
 
 def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
-                       subject_ids=None, normalize='all'):
+                       subject_ids=None, normalize='all', scale=None):
     """
     Takes in a set of training images and writes those images to an hdf5 file.
     :param training_data_files: List of tuples containing the training data files. The modalities should be listed in
@@ -49,7 +51,7 @@ def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
         raise e
 
     write_image_data_to_file(training_data_files, data_storage, truth_storage,
-                             truth_dtype=truth_dtype)
+                             truth_dtype=truth_dtype, scale=scale)
     if subject_ids:
         hdf5_file.create_array(hdf5_file.root, 'subject_ids', obj=subject_ids)
     if isinstance(normalize, str):
