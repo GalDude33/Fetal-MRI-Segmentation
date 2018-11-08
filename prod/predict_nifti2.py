@@ -84,7 +84,7 @@ def main(input_path, output_path, overlap_factor,
                               data=np.expand_dims(data, 0),
                               overlap_factor=overlap_factor,
                               patch_shape=config["patch_shape"] + [config["patch_depth"]])
-    nib.save(prediction, os.path.join(output_path, 'pred.nii'))
+    save_nifti(prediction, os.path.join(output_path, 'pred.nii'))
 
     print('Post-processing mask...')
     if prediction.shape[-1] > 1:
@@ -99,7 +99,7 @@ def main(input_path, output_path, overlap_factor,
                                           config2=config2, model2_path=model2_path,
                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
                                           overlap_factor=0.9)
-        nib.save(prediction, os.path.join(output_path, 'pred_roi.nii'))
+        save_nifti(prediction, os.path.join(output_path, 'pred_roi.nii'))
 
     print('Saving to {}'.format(output_path))
     print('Finished.')
