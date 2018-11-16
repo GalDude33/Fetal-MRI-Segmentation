@@ -89,18 +89,27 @@ def flip_image(affine, axis):
 def shot_noise(data):
     mm_scaler = MinMaxScaler((0, 1))
     data = mm_scaler.fit_transform(data)
-    data = random_noise(data, mode='poisson', clip=True)
-    return mm_scaler.inverse_transform(data)
+    new_data = random_noise(data, mode='poisson', clip=True)
+    return mm_scaler.inverse_transform(new_data)
+
+
+def gaussian_noise(data, sigma):
+    mm_scaler = MinMaxScaler((0, 1))
+    data = mm_scaler.fit_transform(data)
+    new_data = random_noise(data, mode='gaussian', clip=True, var=sigma)
+    return mm_scaler.inverse_transform(new_data)
 
 
 def apply_gaussian_filter(data, sigma):
     return gaussian(data, sigma=sigma)
+
 
 def apply_coarse_dropout(data, rate, size_percent, per_channel=True):
     mm_scaler = MinMaxScaler((0, 255))
     data = mm_scaler.fit_transform(data)
     new_data = iaa.CoarseDropout(p=rate, size_percent=size_percent, per_channel=per_channel).augment_image(data)
     return mm_scaler.inverse_transform(new_data)
+
 
 def contrast_augment(data, min_per, max_per):
     # in_range = (np.percentile(data, q=min_per), np.percentile(data, q=max_per))
@@ -175,7 +184,8 @@ def random_flip_dimensions(n_dim, flip_factor):
     ]
 
 
-def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scale_deviation=None, rotate_deviation=None,
+def augment_data(data, truth, mask, data_min, data_max, scale_deviation=None, iso_scale_deviation=None,
+                 rotate_deviation=None,
                  translate_deviation=None, flip=None, contrast_deviation=None, poisson_noise=None,
                  piecewise_affine=None, elastic_transform=None, intensity_multiplication_range=None,
                  gaussian_filter=None, coarse_dropout=None, data_range=None, truth_range=None, prev_truth_range=None):
@@ -272,6 +282,24 @@ def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scal
         prev_truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
                                                    prev_truth_range, order=0, mode='constant', cval=0)
 
+    if mask is None:
+        mask_data = None
+    else:
+        mask_image, mask_affine = mask, np.eye(4)
+        distorted_mask_data, distorted_mask_affine = distort_image(mask_image, mask_affine,
+                                                                   flip_axis=flip_axis,
+                                                                   scale_factor=scale_factor,
+                                                                   rotate_factor=rotate_factor,
+                                                                   translate_factor=translate_factor)
+        if truth_range is None:
+            mask_data = resample_to_img(get_image(distorted_mask_data, distorted_mask_affine), mask_image,
+                                        interpolation="nearest", copy=False,
+                                        clip=True).get_data()
+        else:
+            mask_data = interpolate_affine_range(distorted_mask_data, distorted_mask_affine,
+                                                 truth_range, order=0, mode='constant', cval=0)
+
+
     if piecewise_affine_scale > 0:
         data, truth = apply_piecewise_affine(data, truth, piecewise_affine_scale)
 
@@ -291,9 +319,10 @@ def augment_data(data, truth, data_min, data_max, scale_deviation=None, iso_scal
         data = shot_noise(data)
 
     if coarse_dropout is not None:
-        data = apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size, per_channel=coarse_dropout["per_channel"])
+        data = apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size,
+                                    per_channel=coarse_dropout["per_channel"])
 
-    return data, truth_data, prev_truth_data
+    return data, truth_data, prev_truth_data, mask_data
 
 
 def generate_permutation_keys():

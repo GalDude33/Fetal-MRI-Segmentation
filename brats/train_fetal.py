@@ -82,7 +82,8 @@ else:
         0: 'binary_crossentropy_loss',
         1: 'dice_coefficient_loss',
         2: 'focal_loss',
-        3: 'dice_and_xent'
+        3: 'dice_and_xent',
+        4: 'dice_and_xent_mask'
     }[1]
 
     config["augment"] = {
@@ -144,6 +145,9 @@ else:
     # Not relevant at the moment...
     config["dropout_rate"]=0
 
+    # Weight masks (currently supported only with isensee3d model and dice_and_xent_weigthed loss)
+    config["weight_mask"] = ["dists"] # or []
+
     # Auto set - do not touch
     config["augment"] = config["augment"] if any(config["augment"].values()) else None
     config["n_labels"] = len(config["labels"])
@@ -182,7 +186,7 @@ def fetch_training_data_files(return_subject_ids=False):
                               key=os.path.basename):
         subject_ids.append(os.path.basename(subject_dir))
         subject_files = list()
-        for modality in config["training_modalities"] + ["truth"]:
+        for modality in config["training_modalities"] + ["truth"] + config["weight_mask"]:
             subject_files.append(os.path.join(subject_dir, modality + ".nii" + config["ext"]))
         training_data_files.append(tuple(subject_files))
     if return_subject_ids:
@@ -215,6 +219,7 @@ def main(overwrite=False):
                            initial_learning_rate=config["initial_learning_rate"],
                            **{'dropout_rate': config['dropout_rate'],
                               'loss_function': loss_func,
+                              'mask_shape': config["input_shape"], # TODO: change to output shape
                               'old_model_path': config['old_model']})
     model.summary()
 

@@ -14,6 +14,8 @@ class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
         self.truth = [_ for _ in file.root.truth]
+        self.mask = [_ for _ in file.root.mask]
+
         self.stats = att_dict(
             p1=[np.percentile(_, q=1) for _ in self.data],
             min=[np.min(_) for _ in self.data],
@@ -21,9 +23,6 @@ class DataFileDummy:
         )
         self.subject_ids = [_ for _ in file.root.subject_ids]
 
-        # self.data_p1 = [np.percentile(_, q=1) for _ in self.data]
-        # self.data_min = [np.min(_) for _ in self.data]
-        # self.data_max = [np.max(_) for _ in self.data]
         self.root = self
 
 
@@ -204,18 +203,19 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
     while True:
         x_list = list()
         y_list = list()
+        mask_list = list()
 
         while len(x_list) < batch_size:
             index = next(index_generator)
-            add_data(x_list, y_list, data_file, index, augment=augment,
+            add_data(x_list, y_list, mask_list, data_file, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
                      truth_index=truth_index, truth_size=truth_size, truth_downsample=truth_downsample,
                      truth_crop=truth_crop, prev_truth_index=prev_truth_index,
                      prev_truth_size=prev_truth_size, drop_easy_patches=drop_easy_patches)
-        yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical, is3d=is3d)
+        yield convert_data(x_list, y_list, mask_list, n_labels=n_labels, labels=labels, categorical=categorical, is3d=is3d)
 
 
-def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
+def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
              skip_blank=True,
              truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None,
              drop_easy_patches=False):
@@ -232,7 +232,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
     :param augment: if not None, data will be augmented according to the augmentation parameters
     :return:
     """
-    data, truth = get_data_from_file(data_file, index, patch_shape=None)
+    data, truth, mask = get_data_from_file(data_file, index, patch_shape=None)
 
     patch_corner = [
         np.random.randint(low=low, high=high)
@@ -250,25 +250,27 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
         else:
             prev_truth_range = None
 
-        data, truth, prev_truth = augment_data(data, truth,
-                                               data_min=data_file.stats.min[index], data_max=data_file.stats.max[index],
-                                               scale_deviation=augment.get('scale', None),
-                                               iso_scale_deviation=augment.get('iso_scale', None),
-                                               rotate_deviation=augment.get('rotate', None),
-                                               translate_deviation=augment.get('translate', None),
-                                               flip=augment.get('flip', None),
-                                               contrast_deviation=augment.get('contrast', None),
-                                               piecewise_affine=augment.get('piecewise_affine', None),
-                                               elastic_transform=augment.get('elastic_transform', None),
-                                               intensity_multiplication_range=augment.get('intensity_multiplication', None),
-                                               poisson_noise=augment.get("poisson_noise", None),
-                                               gaussian_filter=augment.get("gaussian_filter", None),
-                                               coarse_dropout=augment.get("coarse_dropout", None),
-                                               data_range=data_range, truth_range=truth_range,
-                                               prev_truth_range=prev_truth_range)
+        data, truth, prev_truth, mask = augment_data(data, truth, mask,
+                                                     data_min=data_file.stats.min[index],
+                                                     data_max=data_file.stats.max[index],
+                                                     scale_deviation=augment.get('scale', None),
+                                                     iso_scale_deviation=augment.get('iso_scale', None),
+                                                     rotate_deviation=augment.get('rotate', None),
+                                                     translate_deviation=augment.get('translate', None),
+                                                     flip=augment.get('flip', None),
+                                                     contrast_deviation=augment.get('contrast', None),
+                                                     piecewise_affine=augment.get('piecewise_affine', None),
+                                                     elastic_transform=augment.get('elastic_transform', None),
+                                                     intensity_multiplication_range=augment.get(
+                                                         'intensity_multiplication', None),
+                                                     poisson_noise=augment.get("poisson_noise", None),
+                                                     gaussian_filter=augment.get("gaussian_filter", None),
+                                                     coarse_dropout=augment.get("coarse_dropout", None),
+                                                     data_range=data_range, truth_range=truth_range,
+                                                     prev_truth_range=prev_truth_range)
     else:
-        data, truth, prev_truth = \
-            extract_patch(data, patch_corner, patch_shape, truth,
+        data, truth, prev_truth, mask = \
+            extract_patch(data, patch_corner, patch_shape, truth, mask,
                           truth_index=truth_index, truth_size=truth_size,
                           prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size)
 
@@ -294,14 +296,19 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
     if not skip_blank or np.any(truth != 0):
         x_list.append(data)
         y_list.append(truth)
+        mask_list.append(mask)
 
 
-def extract_patch(data, patch_corner, patch_shape, truth, truth_index, truth_size, prev_truth_index=None,
+def extract_patch(data, patch_corner, patch_shape, truth, mask, truth_index, truth_size, prev_truth_index=None,
                   prev_truth_size=1):
     data = get_patch_from_3d_data(data, patch_shape, patch_corner)
     real_truth = get_patch_from_3d_data(truth,
                                         patch_shape[:-1] + (truth_size,),
                                         patch_corner + np.array((0, 0, truth_index)))
+    if mask is not None:
+        mask = get_patch_from_3d_data(mask,
+                                      patch_shape[:-1] + (truth_size,),
+                                      patch_corner + np.array((0, 0, truth_index)))
     if prev_truth_index is not None:
         prev_truth = get_patch_from_3d_data(truth,
                                             patch_shape[:-1] + (prev_truth_size,),
@@ -309,33 +316,42 @@ def extract_patch(data, patch_corner, patch_shape, truth, truth_index, truth_siz
     else:
         prev_truth = None
 
-    return data, real_truth, prev_truth
+    return data, real_truth, prev_truth, mask
 
 
-def extract_random_patch(data, patch_shape, truth, truth_index, prev_truth_index):
+def extract_random_patch(data, patch_shape, truth, mask, truth_index, prev_truth_index):
     # cut relevant patch
     patch_corner = [
         np.random.randint(low=low, high=high)
         for low, high in zip((0, 0, 0),  # -np.array(patch_shape) // 2,
                              truth.shape - np.array(patch_shape))  # - np.array(patch_shape) // 2)
     ]
-    return extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index)
+    return extract_patch(data, patch_corner, patch_shape, truth, mask, truth_index, prev_truth_index)
 
 
 def get_data_from_file(data_file, index, patch_shape=None):
     if patch_shape:
         index, patch_index = index
-        data, truth = get_data_from_file(data_file, index, patch_shape=None)
+        data, truth, mask = get_data_from_file(data_file, index, patch_shape=None)
         x = get_patch_from_3d_data(data, patch_shape, patch_index)
         y = get_patch_from_3d_data(truth, patch_shape, patch_index)
+        if mask is not None:
+            z = get_patch_from_3d_data(mask, patch_shape, patch_index)
+        else:
+            z = None
     else:
+        if data_file.root.mask is not None:
+            z = data_file.root.mask[index]
+        else:
+            z = None
         x, y = data_file.root.data[index], data_file.root.truth[index]
-    return x, y
+    return x, y, z
 
 
-def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True, is3d=False):
+def convert_data(x_list, y_list, mask_list, n_labels=1, labels=None, categorical=True, is3d=False):
     x = np.asarray(x_list)
     y = np.asarray(y_list)
+    masks = np.asarray(mask_list)
     # if n_labels == 1:
     #     y[y > 0] = 1
     # elif n_labels > 1:
@@ -345,7 +361,8 @@ def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True, is3d
     if is3d:
         x = np.expand_dims(x, 1)
         y = np.expand_dims(y, 1)
-    return x, y
+        masks = np.expand_dims(mask_list, 1)
+    return [x,masks], y
 
 
 def get_multi_class_labels(data, n_labels, labels=None):

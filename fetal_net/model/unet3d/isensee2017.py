@@ -14,7 +14,8 @@ create_convolution_block = partial(create_convolution_block, activation=LeakyReL
 
 def isensee2017_model_3d(input_shape=(1, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
                          n_segmentation_levels=3, n_labels=1, optimizer=Adam, initial_learning_rate=5e-4,
-                         loss_function=dice_coefficient_loss, activation_name="sigmoid", **kargs):
+                         loss_function=dice_coefficient_loss, activation_name="sigmoid", mask_shape=None,
+                         **kargs):
     """
     This function builds a model proposed by Isensee et al. for the BRATS 2017 competition:
     https://www.cbica.upenn.edu/sbia/Spyridon.Bakas/MICCAI_BraTS/MICCAI_BraTS_2017_proceedings_shortPapers.pdf
@@ -81,9 +82,13 @@ def isensee2017_model_3d(input_shape=(1, 128, 128, 128), n_base_filters=16, dept
     if loss_function != dice_coefficient_loss:
         metrics += [dice_coefficient]
 
+    if mask_shape is not None:
+        mask_input = Input(shape=mask_shape)
+        inputs = [inputs, mask_input]
+        loss_function = loss_function(mask_input)
+
     model = Model(inputs=inputs, outputs=activation_block, name='isensee2017_3d_Model_'+str(np.random.random()))
-    model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function,
-                  metrics=metrics)
+    model.compile(optimizer=optimizer(lr=initial_learning_rate), loss=loss_function, metrics=metrics)
     return model
 
 

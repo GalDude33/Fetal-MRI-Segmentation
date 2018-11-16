@@ -12,22 +12,24 @@ def create_data_file(out_file, n_samples):
     filters = tables.Filters(complevel=5, complib='blosc')
     data_storage = hdf5_file.create_vlarray(hdf5_file.root, 'data', tables.ObjectAtom(), filters=filters, expectedrows=n_samples)
     truth_storage = hdf5_file.create_vlarray(hdf5_file.root, 'truth', tables.ObjectAtom(), filters=filters, expectedrows=n_samples)
-    return hdf5_file, data_storage, truth_storage
+    mask_storage = hdf5_file.create_vlarray(hdf5_file.root, 'mask', tables.ObjectAtom(), filters=filters, expectedrows=n_samples)
+    return hdf5_file, data_storage, truth_storage, mask_storage
 
 
-def write_image_data_to_file(image_files, data_storage, truth_storage, truth_dtype=np.uint8, scale=None):
+def write_image_data_to_file(image_files, data_storage, truth_storage, mask_storage, truth_dtype=np.uint8, scale=None):
     for set_of_files in image_files:
         images = [read_img(_) for _ in set_of_files]
         if scale is not None:
             images = [resize(_, np.divide(_.shape, scale)) for _ in images]
         subject_data = [image.get_data() for image in images]
-        add_data_to_storage(data_storage, truth_storage, subject_data, truth_dtype)
-    return data_storage, truth_storage
+        add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data, truth_dtype)
+    return data_storage, truth_storage, mask_storage
 
 
-def add_data_to_storage(data_storage, truth_storage, subject_data, truth_dtype):
+def add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data, truth_dtype):
     data_storage.append(np.asarray(subject_data[0]).astype(np.float))
     truth_storage.append(np.asarray(subject_data[1], dtype=truth_dtype))
+    mask_storage.append(np.asarray(subject_data[2]).astype(np.float))
 
 
 def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
@@ -44,13 +46,13 @@ def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
     """
     n_samples = len(training_data_files)
     try:
-        hdf5_file, data_storage, truth_storage = create_data_file(out_file, n_samples=n_samples)
+        hdf5_file, data_storage, truth_storage, mask_storage = create_data_file(out_file, n_samples=n_samples)
     except Exception as e:
         # If something goes wrong, delete the incomplete data file
         os.remove(out_file)
         raise e
 
-    write_image_data_to_file(training_data_files, data_storage, truth_storage,
+    write_image_data_to_file(training_data_files, data_storage, truth_storage, mask_storage,
                              truth_dtype=truth_dtype, scale=scale)
     if subject_ids:
         hdf5_file.create_array(hdf5_file.root, 'subject_ids', obj=subject_ids)
