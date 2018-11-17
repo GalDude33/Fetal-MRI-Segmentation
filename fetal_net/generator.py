@@ -1,7 +1,7 @@
 import os
 import random
 import numpy as np
-from keras.utils import to_categorical
+from keras.utils import to_categorical, Sequence
 
 from brats.utils import AttributeDict as att_dict
 from fetal_net.utils.utils import resize
@@ -110,31 +110,33 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     print("Validation: {}".format([data_file.subject_ids[_].decode() for _ in validation_list]))
     print("Test: {}".format([data_file.subject_ids[_].decode() for _ in test_list]))
 
-    training_generator = \
-        data_generator(data_file, training_list, batch_size=batch_size, augment=augment,
-                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
-                       skip_blank=skip_blank_train,
-                       truth_index=truth_index, truth_size=truth_size,
-                       truth_downsample=truth_downsample, truth_crop=truth_crop,
-                       categorical=categorical, is3d=is3d,
-                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
-                       drop_easy_patches=drop_easy_patches_train)
-    validation_generator = \
-        data_generator(data_file, validation_list, batch_size=validation_batch_size,
-                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
-                       skip_blank=skip_blank_val,
-                       truth_index=truth_index, truth_size=truth_size,
-                       truth_downsample=truth_downsample, truth_crop=truth_crop,
-                       categorical=categorical, is3d=is3d,
-                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
-                       drop_easy_patches=drop_easy_patches_val)
-
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_epoch // batch_size
     print("Number of training steps: ", num_training_steps)
 
     num_validation_steps = patches_per_epoch // batch_size
     print("Number of validation steps: ", num_validation_steps)
+
+    training_generator = \
+        FetalSequence(epoch_size=num_training_steps,
+                      data_file=data_file, index_list=training_list, batch_size=batch_size, augment=augment,
+                      n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                      skip_blank=skip_blank_train,
+                      truth_index=truth_index, truth_size=truth_size,
+                      truth_downsample=truth_downsample, truth_crop=truth_crop,
+                      categorical=categorical, is3d=is3d,
+                      prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                      drop_easy_patches=drop_easy_patches_train)
+    validation_generator = \
+        FetalSequence(epoch_size=num_validation_steps,
+                      data_file=data_file, index_list=validation_list, batch_size=validation_batch_size,
+                      n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                      skip_blank=skip_blank_val,
+                      truth_index=truth_index, truth_size=truth_size,
+                      truth_downsample=truth_downsample, truth_crop=truth_crop,
+                      categorical=categorical, is3d=is3d,
+                      prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                      drop_easy_patches=drop_easy_patches_val)
 
     return training_generator, validation_generator, num_training_steps, num_validation_steps
 
@@ -195,6 +197,23 @@ def list_generator(index_list):
         yield from index_list
 
 
+class FetalSequence(Sequence):
+
+    def __init__(self, epoch_size, **kargs):
+        self.kargs = kargs
+        self.generator = data_generator(**kargs)
+        self.epoch_size = epoch_size
+
+    def __len__(self):
+        return self.epoch_size
+
+    def __getitem__(self, idx):
+        next(self.generator)
+
+    def reset(self):
+        self.generator = data_generator(**self.kargs)
+
+
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
                    shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_size=1, truth_downsample=None,
                    truth_crop=True, categorical=True, prev_truth_index=None, prev_truth_size=None,
@@ -212,7 +231,8 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
                      truth_index=truth_index, truth_size=truth_size, truth_downsample=truth_downsample,
                      truth_crop=truth_crop, prev_truth_index=prev_truth_index,
                      prev_truth_size=prev_truth_size, drop_easy_patches=drop_easy_patches)
-        yield convert_data(x_list, y_list, mask_list, n_labels=n_labels, labels=labels, categorical=categorical, is3d=is3d)
+        yield convert_data(x_list, y_list, mask_list, n_labels=n_labels, labels=labels, categorical=categorical,
+                           is3d=is3d)
 
 
 def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
@@ -250,24 +270,27 @@ def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_siz
         else:
             prev_truth_range = None
 
-        data, truth, prev_truth, mask = augment_data(data, truth, mask,
-                                                     data_min=data_file.stats.min[index],
-                                                     data_max=data_file.stats.max[index],
-                                                     scale_deviation=augment.get('scale', None),
-                                                     iso_scale_deviation=augment.get('iso_scale', None),
-                                                     rotate_deviation=augment.get('rotate', None),
-                                                     translate_deviation=augment.get('translate', None),
-                                                     flip=augment.get('flip', None),
-                                                     contrast_deviation=augment.get('contrast', None),
-                                                     piecewise_affine=augment.get('piecewise_affine', None),
-                                                     elastic_transform=augment.get('elastic_transform', None),
-                                                     intensity_multiplication_range=augment.get(
-                                                         'intensity_multiplication', None),
-                                                     poisson_noise=augment.get("poisson_noise", None),
-                                                     gaussian_filter=augment.get("gaussian_filter", None),
-                                                     coarse_dropout=augment.get("coarse_dropout", None),
-                                                     data_range=data_range, truth_range=truth_range,
-                                                     prev_truth_range=prev_truth_range)
+        data, truth, prev_truth, mask = \
+            augment_data(data, truth,
+                         data_min=data_file.stats.min[index],
+                         data_max=data_file.stats.max[index],
+                         mask=mask,
+                         scale_deviation=augment.get('scale', None),
+                         iso_scale_deviation=augment.get('iso_scale', None),
+                         rotate_deviation=augment.get('rotate', None),
+                         translate_deviation=augment.get('translate', None),
+                         flip=augment.get('flip', None),
+                         contrast_deviation=augment.get('contrast', None),
+                         piecewise_affine=augment.get('piecewise_affine', None),
+                         elastic_transform=augment.get('elastic_transform', None),
+                         intensity_multiplication_range=augment.get('intensity_multiplication', None),
+                         poisson_noise=augment.get("poisson_noise", None),
+                         gaussian_noise=augment.get("gaussian_noise", None),
+                         speckle_noise=augment.get("speckle_noise", None),
+                         gaussian_filter=augment.get("gaussian_filter", None),
+                         coarse_dropout=augment.get("coarse_dropout", None),
+                         data_range=data_range, truth_range=truth_range,
+                         prev_truth_range=prev_truth_range)
     else:
         data, truth, prev_truth, mask = \
             extract_patch(data, patch_corner, patch_shape, truth, mask,
@@ -362,7 +385,7 @@ def convert_data(x_list, y_list, mask_list, n_labels=1, labels=None, categorical
         x = np.expand_dims(x, 1)
         y = np.expand_dims(y, 1)
         masks = np.expand_dims(mask_list, 1)
-    return [x,masks], y
+    return [x, masks], y
 
 
 def get_multi_class_labels(data, n_labels, labels=None):

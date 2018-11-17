@@ -85,8 +85,9 @@ def _focal_loss(gamma=2., alpha=.5):
 
 def dice_and_xent_mask(weight_mask, xent_weight=1.0, dist_sigma = 3):
     def _loss(y_true, y_pred):
-        weight_mask = K.exp(-weight_mask/dist_sigma)
-        return dice_and_xent(y_true, y_pred, xent_weight=xent_weight, weight_mask=weight_mask)
+        return dice_and_xent(y_true, y_pred,
+                             xent_weight=xent_weight,
+                             weight_mask=K.exp(-weight_mask/dist_sigma))
     return _loss
 
 dice_coef = dice_coefficient
