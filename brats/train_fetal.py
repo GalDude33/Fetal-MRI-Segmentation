@@ -104,16 +104,24 @@ else:
         # "piecewise_affine": {
         #     'scale': 2
         # },
-        # "elastic_transform": {
-        #     'alpha': 5,
-        #     'sigma': 10
-        # },
+        "elastic_transform": {
+            'alpha': 5,
+            'sigma': 10
+        },
         #"intensity_multiplication": 0.2,
         # "coarse_dropout": {
         #     "rate": 0.2,
         #     "size_percent": [0.10, 0.30],
         #     "per_channel": True
-        # }
+        # },
+        "gaussian_noise": {
+            "prob": 0.5,
+            "sigma": 0.05
+        },
+        "speckle_noise": {
+            "prob": 0.5,
+            "sigma": 0.05
+        }
     }
 
     # If the model outputs smaller result (x,y)-wise than the input
@@ -140,7 +148,7 @@ else:
     }[1]  # Normalize by all or each data mean and std
 
     # add ".gz" extension if needed
-    config["ext"] = ""  # ".gz"
+    config["ext"] = ".gz"
 
     # Not relevant at the moment...
     config["dropout_rate"]=0
@@ -219,8 +227,12 @@ def main(overwrite=False):
                            initial_learning_rate=config["initial_learning_rate"],
                            **{'dropout_rate': config['dropout_rate'],
                               'loss_function': loss_func,
-                              'mask_shape': config["input_shape"], # TODO: change to output shape
+                              'mask_shape': None if config["weight_mask"] is None else config["input_shape"], # TODO: change to output shape
                               'old_model_path': config['old_model']})
+        if not overwrite and len(glob.glob(config["model_file"] + '*.h5')) > 0:
+            model_path = get_last_model_path(config["model_file"])
+            print('Loading model from: {}'.format(model_path))
+            model.load_weights(model_path)
     model.summary()
 
     # get training and testing generators
