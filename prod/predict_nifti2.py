@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from pathlib import Path
 
 import numpy as np
 from nilearn.image import new_img_like
@@ -72,10 +73,12 @@ def main(input_path, output_path, overlap_factor,
          config2=None, model2_path=None, preprocess_method2=None, norm_params2=None):
     print(model_path)
     model = load_old_model(get_last_model_path(model_path))
-    print('Loading mat from {}...'.format(input_path))
+    print('Loading nifti from {}...'.format(input_path))
     nifti = read_img(input_path)
     print('Predicting mask...')
     data = nifti.get_fdata().astype(np.float)
+
+    scan_name = Path(input_path).stem
 
     data = preproc_and_norm(data, preprocess_method, norm_params)
 
@@ -84,13 +87,12 @@ def main(input_path, output_path, overlap_factor,
                               data=np.expand_dims(data, 0),
                               overlap_factor=overlap_factor,
                               patch_shape=config["patch_shape"] + [config["patch_depth"]])
-    save_nifti(prediction, os.path.join(output_path, 'pred.nii'))
+    save_nifti(prediction, os.path.join(output_path, scan_name+'_pred.nii.gz'))
 
     print('Post-processing mask...')
     if prediction.shape[-1] > 1:
         prediction = prediction[..., 1]
     prediction = prediction.squeeze()
-    print("Storing prediction in [7-9], 7 should be the best...")
     mask = process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
 
     if config2 is not None:
@@ -99,7 +101,7 @@ def main(input_path, output_path, overlap_factor,
                                           config2=config2, model2_path=model2_path,
                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
                                           overlap_factor=0.9)
-        save_nifti(prediction, os.path.join(output_path, 'pred_roi.nii'))
+        save_nifti(prediction, os.path.join(output_path, scan_name+'pred_roi.nii.gz'))
 
     print('Saving to {}'.format(output_path))
     print('Finished.')
