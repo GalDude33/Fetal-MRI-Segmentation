@@ -377,13 +377,20 @@ def convert_data(x_list, y_list, mask_list, n_labels=1, labels=None, categorical
     #     y[y > 0] = 1
     # elif n_labels > 1:
     #     y = get_multi_class_labels(y, n_labels=n_labels, labels=labels)
+
+    inputs = []
     if categorical:
         y = to_categorical(y, 2)
     if is3d:
         x = np.expand_dims(x, 1)
         y = np.expand_dims(y, 1)
         masks = np.expand_dims(mask_list, 1)
-    return [x, masks], y
+
+    inputs = [x]
+    if len(masks) > 0:
+        inputs.append(masks)
+
+    return inputs, y
 
 
 def get_multi_class_labels(data, n_labels, labels=None):
