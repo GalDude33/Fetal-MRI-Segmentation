@@ -14,7 +14,11 @@ class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
         self.truth = [_ for _ in file.root.truth]
-        self.mask = [_ for _ in file.root.mask]
+
+        if len(file.root.mask):
+            self.mask = [_ for _ in file.root.mask]
+        else:
+            self.mask = None
 
         self.stats = att_dict(
             p1=[np.percentile(_, q=1) for _ in self.data],
