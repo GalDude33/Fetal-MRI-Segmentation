@@ -122,25 +122,23 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     print("Number of validation steps: ", num_validation_steps)
 
     training_generator = \
-        FetalSequence(epoch_size=num_training_steps,
-                      data_file=data_file, index_list=training_list, batch_size=batch_size, augment=augment,
-                      n_labels=n_labels, labels=labels, patch_shape=patch_shape,
-                      skip_blank=skip_blank_train,
-                      truth_index=truth_index, truth_size=truth_size,
-                      truth_downsample=truth_downsample, truth_crop=truth_crop,
-                      categorical=categorical, is3d=is3d,
-                      prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
-                      drop_easy_patches=drop_easy_patches_train)
+        data_generator(data_file=data_file, index_list=training_list, batch_size=batch_size, augment=augment,
+                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                       skip_blank=skip_blank_train,
+                       truth_index=truth_index, truth_size=truth_size,
+                       truth_downsample=truth_downsample, truth_crop=truth_crop,
+                       categorical=categorical, is3d=is3d,
+                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                       drop_easy_patches=drop_easy_patches_train)
     validation_generator = \
-        FetalSequence(epoch_size=num_validation_steps,
-                      data_file=data_file, index_list=validation_list, batch_size=validation_batch_size,
-                      n_labels=n_labels, labels=labels, patch_shape=patch_shape,
-                      skip_blank=skip_blank_val,
-                      truth_index=truth_index, truth_size=truth_size,
-                      truth_downsample=truth_downsample, truth_crop=truth_crop,
-                      categorical=categorical, is3d=is3d,
-                      prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
-                      drop_easy_patches=drop_easy_patches_val)
+        data_generator(data_file=data_file, index_list=validation_list, batch_size=validation_batch_size,
+                       n_labels=n_labels, labels=labels, patch_shape=patch_shape,
+                       skip_blank=skip_blank_val,
+                       truth_index=truth_index, truth_size=truth_size,
+                       truth_downsample=truth_downsample, truth_crop=truth_crop,
+                       categorical=categorical, is3d=is3d,
+                       prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
+                       drop_easy_patches=drop_easy_patches_val)
 
     return training_generator, validation_generator, num_training_steps, num_validation_steps
 
