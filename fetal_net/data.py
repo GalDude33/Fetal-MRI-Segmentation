@@ -29,7 +29,7 @@ def write_image_data_to_file(image_files, data_storage, truth_storage, mask_stor
 def add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data, truth_dtype):
     data_storage.append(np.asarray(subject_data[0]).astype(np.float))
     truth_storage.append(np.asarray(subject_data[1], dtype=truth_dtype))
-    if len(subject_data) >= 2:
+    if len(subject_data) > 2:
         mask_storage.append(np.asarray(subject_data[2]).astype(np.float))
 
 

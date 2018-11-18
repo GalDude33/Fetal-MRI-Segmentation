@@ -321,7 +321,8 @@ def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_siz
     if not skip_blank or np.any(truth != 0):
         x_list.append(data)
         y_list.append(truth)
-        mask_list.append(mask)
+        if mask is not None:
+            mask_list.append(mask)
 
 
 def extract_patch(data, patch_corner, patch_shape, truth, mask, truth_index, truth_size, prev_truth_index=None,
@@ -390,9 +391,9 @@ def convert_data(x_list, y_list, mask_list, n_labels=1, labels=None, categorical
         y = np.expand_dims(y, 1)
         masks = np.expand_dims(mask_list, 1)
 
-    inputs = [x]
+    inputs = x
     if len(masks) > 0:
-        inputs.append(masks)
+        inputs = [x, masks]
 
     return inputs, y
 

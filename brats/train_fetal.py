@@ -32,7 +32,7 @@ else:
     config = dict()
     config["base_dir"] = opts.config_dir
     config["split_dir"] = './debug_split'
-    config['scans_dir'] = '../../Datasets/dataset_name'
+    config['scans_dir'] = '../../Datasets/brain_new_cutted_window_1_99'
 
     Path(config["base_dir"]).mkdir(parents=True, exist_ok=True)
     Path(config["split_dir"]).mkdir(parents=True, exist_ok=True)
@@ -194,7 +194,7 @@ def fetch_training_data_files(return_subject_ids=False):
                               key=os.path.basename):
         subject_ids.append(os.path.basename(subject_dir))
         subject_files = list()
-        for modality in config["training_modalities"] + ["truth"] + config["weight_mask"]:
+        for modality in config["training_modalities"] + ["truth"] + (config["weight_mask"] if config["weight_mask"] is not None else []):
             subject_files.append(os.path.join(subject_dir, modality + ".nii" + config["ext"]))
         training_data_files.append(tuple(subject_files))
     if return_subject_ids:
