@@ -4,6 +4,10 @@ from keras import backend as K
 import tensorflow as tf
 
 
+def double_dice_loss(y_true, y_pred, ratio=10.0):
+    return -dice_coefficient(y_true, y_pred) + ratio*dice_coefficient(1-y_true, y_pred)
+
+
 def dice_coefficient(y_true, y_pred, smooth=1.):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
