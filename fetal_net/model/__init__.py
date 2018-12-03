@@ -1,3 +1,5 @@
+from functools import partial
+
 from .fetal_net import fetal_envelope_model
 from .fetal_net_skip import fetal_origin_model
 from .fetal_net_skip2 import fetal_origin2_model
@@ -10,3 +12,5 @@ from .unet3d.unet import unet_model_3d
 from .unet3d.isensee2017 import isensee2017_model_3d
 
 from .norm.NormNet import norm_net_model
+
+unet_model_2d_skip = partial(unet_model_2d, skip_connections=True)

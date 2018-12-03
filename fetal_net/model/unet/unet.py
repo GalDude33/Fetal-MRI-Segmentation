@@ -4,7 +4,7 @@ import numpy as np
 from keras import backend as K
 from keras.engine import Input, Model
 from keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, PReLU, Deconvolution2D, \
-    Permute, SpatialDropout2D
+    Permute, SpatialDropout2D, Add
 from keras.optimizers import Adam
 
 from ...metrics import dice_coefficient_loss, dice_coefficient, vod_coefficient, \
@@ -22,7 +22,7 @@ except ImportError:
 def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_rate=0.00001, deconvolution=False,
                   depth=4, n_base_filters=32, include_label_wise_dice_coefficients=False,
                   batch_normalization=False, activation_name="sigmoid", loss_function=dice_coefficient_loss,
-                  dropout_rate=0, **kargs):
+                  dropout_rate=0, skip_connections=False, **kargs):
     """
     Builds the 3D UNet Keras model.f
     :param metrics: List metrics to be calculated during model training (default is dice coefficient).
@@ -112,9 +112,11 @@ def create_convolution_block(input_layer, n_filters, batch_normalization=False, 
                               "\nTry: pip install git+https://www.github.com/farizrahman4u/keras-contrib.git")
         layer = InstanceNormalization(axis=1)(layer)
     if activation is None:
-        return Activation('relu')(layer)
+        layer = Activation('relu')(layer)
     else:
-        return activation()(layer)
+        layer = activation()(layer)
+
+    return layer
 
 
 def compute_level_output_shape(n_filters, depth, pool_size, image_shape):
