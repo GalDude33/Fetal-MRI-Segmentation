@@ -61,15 +61,19 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
             layer1 = SpatialDropout2D(rate=dropout_rate)(layer1)
         layer2 = create_convolution_block(input_layer=layer1, n_filters=n_base_filters * (2 ** layer_depth) * 2,
                                           batch_normalization=batch_normalization)
-        if layer_depth < depth - 1:
-            current_layer = MaxPooling2D(pool_size=pool_size)(layer2)
-        else:
-            current_layer = layer2
 
+        current_layer = layer2
         if skip_connections:
-            current_layer = Add()([current_layer, input_layer])
+            added_layer = input_layer
+            if layer_depth == 0:
+                added_layer = create_convolution_block(input_layer=added_layer, n_filters=n_base_filters * (2 ** layer_depth) * 2,
+                                                       batch_normalization=batch_normalization, kernel=(1,1))
+            current_layer = Add()([current_layer, added_layer])
 
         levels.append(current_layer)
+
+        if layer_depth < depth - 1:
+            current_layer = MaxPooling2D(pool_size=pool_size)(current_layer)
 
     # add levels with up-convolution or up-sampling
     for layer_depth in range(depth - 2, -1, -1):
