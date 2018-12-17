@@ -5,7 +5,9 @@ from pathlib import Path
 
 import numpy as np
 from nilearn.image import new_img_like
+from scipy import ndimage
 
+import fetal_net.preprocess
 from brats.utils import get_last_model_path
 from fetal_net.normalize import normalize_data
 from fetal_net.postprocess import postprocess_prediction as process_pred
@@ -55,13 +57,19 @@ def secondary_prediction(mask, vol, config2, model2_path=None,
     return prediction
 
 
-def preproc_and_norm(data, preprocess_method, norm_params):
+def preproc_and_norm(data, preprocess_method=None, norm_params=None, scale=None, preproc=None):
     if preprocess_method is not None:
         print('Applying preprocess by {}...'.format(preprocess_method))
         if preprocess_method == 'window_1_99':
             data = window_intensities_data(data)
         else:
             raise Exception('Unknown preprocess: {}'.format(preprocess_method))
+
+    if scale is not None:
+        data = ndimage.zoom(data, scale)
+    if preproc is not None:
+        preproc_func = getattr(fetal_net.preprocess, preproc)
+        data = preproc_func(data)
 
     if norm_params is not None and any(norm_params.values()):
         data = normalize_data(data, mean=norm_params['mean'], std=norm_params['std'])
@@ -80,13 +88,18 @@ def main(input_path, output_path, overlap_factor,
 
     scan_name = Path(input_path).stem
 
-    data = preproc_and_norm(data, preprocess_method, norm_params)
+    data = preproc_and_norm(data, preprocess_method, norm_params, config['scale'], config['preproc'])
 
     prediction = \
         patch_wise_prediction(model=model,
                               data=np.expand_dims(data, 0),
                               overlap_factor=overlap_factor,
                               patch_shape=config["patch_shape"] + [config["patch_depth"]])
+
+    # revert to original size
+    if config['scale'] is not None:
+        prediction = ndimage.zoom(prediction, np.divide(1, config['zoom']))
+
     save_nifti(prediction, os.path.join(output_path, scan_name+'_pred.nii.gz'))
 
     print('Post-processing mask...')
@@ -96,11 +109,12 @@ def main(input_path, output_path, overlap_factor,
     mask = process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
 
     if config2 is not None:
+        nifti = read_img(input_path)
         print('Making secondary prediction... [6]')
         prediction = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
                                           config2=config2, model2_path=model2_path,
                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
-                                          overlap_factor=0.9)
+                                          overlap_factor=0.95)
         save_nifti(prediction, os.path.join(output_path, scan_name+'pred_roi.nii.gz'))
 
     print('Saving to {}'.format(output_path))
