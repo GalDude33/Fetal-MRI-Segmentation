@@ -2,6 +2,7 @@ import os
 import glob
 
 import fetal_net
+import fetal_net.preprocess
 import fetal_net.metrics
 from brats.utils import get_last_model_path
 from fetal_net.data import write_data_to_file, open_data_file
@@ -38,24 +39,24 @@ else:
     Path(config["split_dir"]).mkdir(parents=True, exist_ok=True)
 
     # Training params
-    config["batch_size"] = 8
-    config["validation_batch_size"] = 8 # most of times should be equal to "batch_size"
+    config["batch_size"] = 1
+    config["validation_batch_size"] = 1 # most of times should be equal to "batch_size"
     config["patches_per_epoch"] = 800  # patches_per_epoch / batch_size = steps per epoch
 
     config["n_epochs"] = 50  # cutoff the training after this many epochs
     config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
     config["early_stop"] = 7  # training will be stopped after this many epochs without the validation loss improving
-    config["initial_learning_rate"] = 5e-4
+    config["initial_learning_rate"] = 1e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
     config["validation_split"] = 0.90  # portion of the data that will be used for training %
 
     config["3D"] = True  # Enable for 3D Models
     if config["3D"]:
         # Model params (3D)
-        config["patch_shape"] = (96, 96)  # switch to None to train on the whole image
-        config["patch_depth"] = 64
+        config["patch_shape"] = (16, 16)  # switch to None to train on the whole image
+        config["patch_depth"] = 16
         config["truth_index"] = 0
-        config["truth_size"] = 64
+        config["truth_size"] = 16
         model_name = 'isensee'  # or 'unet'
     else:
         #Model params (2D) - should increase "batch_size" and "patches_per_epoch"
@@ -95,12 +96,16 @@ else:
         #     "max": 1
         # },
         "rotate": (0, 0, 90),  # std of angle rotation, switch to None if you want no rotation
-        "poisson_noise": 0.5,
-        # "contrast": {
-        #     'prob': 0,
-        #     'min_factor': 0.2,
-        #     'max_factor': 0.1
-        # },
+        "poisson_noise": 1,
+        "gaussian_filter": {
+            "prob": 0.0,
+            "max_sigma": 1
+        },
+        "contrast": {
+            'prob': 0,
+            'min_factor': 0.2,
+            'max_factor': 0.1
+        },
         # "piecewise_affine": {
         #     'scale': 2
         # },
@@ -137,7 +142,7 @@ else:
 
     config["skip_blank_train"] = False  # if True, then patches without any target will be skipped
     config["skip_blank_val"] = False  # if True, then patches without any target will be skipped
-    config["drop_easy_patches_train"] = True  # will randomly prefer balanced patches (50% 1, 50% 0)
+    config["drop_easy_patches_train"] = False  # will randomly prefer balanced patches (50% 1, 50% 0)
     config["drop_easy_patches_val"] = False  # will randomly prefer balanced patches (50% 1, 50% 0)
 
     # Data normalization
@@ -154,7 +159,7 @@ else:
     config["dropout_rate"]=0
 
     # Weight masks (currently supported only with isensee3d model and dice_and_xent_weigthed loss)
-    config["weight_mask"] = ["dists"] # or []
+    config["weight_mask"] = None #["dists"] # or []
 
     # Auto set - do not touch
     config["augment"] = config["augment"] if any(config["augment"].values()) else None
@@ -174,7 +179,14 @@ else:
     config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.pkl")
     config["test_file"] = os.path.join(config["split_dir"], "test_ids.pkl")
     config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
-    config["scale_data"] = None # (2,2,1)
+    config["scale_data"] = (2,2,1)
+
+    config["preproc"] = {
+        0: "laplace",
+        1: "laplace_norm",
+        2: "grad",
+        3: "grad_norm"
+    }[1]
 
     if config['3D']:
         config["input_shape"] = [1] + list(config["input_shape"])
@@ -208,8 +220,14 @@ def main(overwrite=False):
     if overwrite or not os.path.exists(config["data_file"]):
         training_files, subject_ids = fetch_training_data_files(return_subject_ids=True)
 
+        if config.get('preproc', None) is not None:
+            preproc_func = getattr(fetal_net.preprocess, config['preproc'])
+        else:
+            preproc_func = None
+
         _, (mean, std) = write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids,
-                                            normalize=config['normalization'], scale=config.get('scale_data', None))
+                                            normalize=config['normalization'], scale=config.get('scale_data', None),
+                                            preproc=preproc_func)
         with open(os.path.join(config["base_dir"], 'norm_params.json'), mode='w') as f:
             json.dump({'mean': mean, 'std': std}, f)
 
