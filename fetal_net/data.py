@@ -17,12 +17,16 @@ def create_data_file(out_file, n_samples):
     return hdf5_file, data_storage, truth_storage, mask_storage
 
 
-def write_image_data_to_file(image_files, data_storage, truth_storage, mask_storage, truth_dtype=np.uint8, scale=None):
+def write_image_data_to_file(image_files, data_storage, truth_storage, mask_storage, truth_dtype=np.uint8, scale=None,
+                             preproc=None):
     for set_of_files in image_files:
         images = [read_img(_) for _ in set_of_files]
         subject_data = [image.get_data() for image in images]
         if scale is not None:
             subject_data = [zoom(sub_data, scale) for sub_data in subject_data]
+        if preproc is not None:
+            subject_data[0] = preproc(subject_data[0])
+
         add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data, truth_dtype)
     return data_storage, truth_storage, mask_storage
 
@@ -35,7 +39,7 @@ def add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data,
 
 
 def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
-                       subject_ids=None, normalize='all', scale=None):
+                       subject_ids=None, normalize='all', scale=None, preproc=None):
     """
     Takes in a set of training images and writes those images to an hdf5 file.
     :param training_data_files: List of tuples containing the training data files. The modalities should be listed in
@@ -55,7 +59,7 @@ def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
         raise e
 
     write_image_data_to_file(training_data_files, data_storage, truth_storage, mask_storage,
-                             truth_dtype=truth_dtype, scale=scale)
+                             truth_dtype=truth_dtype, scale=scale, preproc=preproc)
     if subject_ids:
         hdf5_file.create_array(hdf5_file.root, 'subject_ids', obj=subject_ids)
     if isinstance(normalize, str):
