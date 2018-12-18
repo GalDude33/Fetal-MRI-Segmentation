@@ -88,7 +88,9 @@ def main(input_path, output_path, overlap_factor,
 
     scan_name = Path(input_path).stem
 
-    data = preproc_and_norm(data, preprocess_method, norm_params, config['scale'], config['preproc'])
+    data = preproc_and_norm(data, preprocess_method, norm_params,
+                            scale=config.get('scale_data', None),
+                            preproc=config.get('preproc', None))
 
     prediction = \
         patch_wise_prediction(model=model,
@@ -97,7 +99,7 @@ def main(input_path, output_path, overlap_factor,
                               patch_shape=config["patch_shape"] + [config["patch_depth"]])
 
     # revert to original size
-    if config['scale'] is not None:
+    if config.get('scale_data', None) is not None:
         prediction = ndimage.zoom(prediction, np.divide(1, config['zoom']))
 
     save_nifti(prediction, os.path.join(output_path, scan_name+'_pred.nii.gz'))
