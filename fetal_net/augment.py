@@ -90,7 +90,7 @@ def shot_noise(data):
     mm_scaler = MinMaxScaler((0, 1))
     data = mm_scaler.fit_transform(data)
     # TODO: remove hardcoded quantization number :(
-    data = np.floor(data * 1023) / 1023  # quantization of the data is needed before poisson noise
+    data = np.floor(data * 1023) / 1023.0  # quantization of the data is needed before poisson noise
     # TODO: check if clip=True really needed
     new_data = random_noise(data, mode='poisson', clip=True)
     return mm_scaler.inverse_transform(new_data)
@@ -99,14 +99,14 @@ def shot_noise(data):
 def add_gaussian_noise(data, sigma):
     mm_scaler = MinMaxScaler((0, 1))
     data = mm_scaler.fit_transform(data)
-    new_data = random_noise(data, mode='gaussian', clip=True, var=sigma**2)
+    new_data = random_noise(data, mode='gaussian', clip=True, var=sigma ** 2)
     return mm_scaler.inverse_transform(new_data)
 
 
 def add_speckle_noise(data, sigma):
     mm_scaler = MinMaxScaler((0, 1))
     data = mm_scaler.fit_transform(data)
-    new_data = random_noise(data, mode='speckle', clip=True, var=sigma**2)
+    new_data = random_noise(data, mode='speckle', clip=True, var=sigma ** 2)
     return mm_scaler.inverse_transform(new_data)
 
 
@@ -129,10 +129,14 @@ def contrast_augment(data, min_per, max_per):
 
 def apply_piecewise_affine(data, truth, prev_truth, mask, scale):
     rs = np.random.RandomState()
+
     vol_pa_transform = iaa.PiecewiseAffine(scale, nb_cols=2, nb_rows=2, order=1, random_state=rs, deterministic=True)
-    truth_pa_transform = iaa.PiecewiseAffine(scale, nb_cols=2, nb_rows=2, order=0, random_state=rs, deterministic=True)
     data = vol_pa_transform.augment_image(data)
-    truth = truth_pa_transform.augment_image(truth)
+
+    if truth is not None:
+        truth_pa_transform = iaa.PiecewiseAffine(scale, nb_cols=2, nb_rows=2, order=0, random_state=rs,
+                                                 deterministic=True)
+        truth = truth_pa_transform.augment_image(truth)
 
     if prev_truth is not None:
         prev_truth_pa_transform = iaa.PiecewiseAffine(scale, nb_cols=2, nb_rows=2, order=0, random_state=rs,
@@ -149,13 +153,15 @@ def apply_piecewise_affine(data, truth, prev_truth, mask, scale):
 
 def apply_elastic_transform(data, truth, prev_truth, mask, alpha, sigma):
     rs = np.random.RandomState()
+
     vol_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=1, random_state=rs, deterministic=True,
                                                  mode="nearest")
-    truth_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=0, random_state=rs,
-                                                   deterministic=True, mode="nearest")
-
     data = vol_et_transform.augment_image(data)
-    truth = truth_et_transform.augment_image(truth)
+
+    if truth is not None:
+        truth_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=0, random_state=rs,
+                                                       deterministic=True, mode="nearest")
+        truth = truth_et_transform.augment_image(truth)
 
     if prev_truth is not None:
         prev_truth_et_transform = iaa.ElasticTransformation(alpha=alpha, sigma=sigma, order=0, random_state=rs,
@@ -223,7 +229,7 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
                  poisson_noise=None, gaussian_noise=None, speckle_noise=None,
                  piecewise_affine=None, elastic_transform=None, intensity_multiplication_range=None,
                  gaussian_filter=None, coarse_dropout=None, data_range=None, truth_range=None, prev_truth_range=None):
-    n_dim = len(truth.shape)
+    n_dim = len(data.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
     else:
@@ -234,8 +240,6 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
             iso_scale_factor = 1 / iso_scale_factor
         scale_factor[0] *= iso_scale_factor
         scale_factor[1] *= iso_scale_factor
-    else:
-        iso_scale_factor = None
     if rotate_deviation:
         rotate_factor = random_rotation_angle(n_dim, std=rotate_deviation)
         rotate_factor = np.deg2rad(rotate_factor)
@@ -305,25 +309,28 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
         data = interpolate_affine_range(distorted_data, distorted_affine, data_range, order=1, mode='constant',
                                         cval=data_min)
 
-    truth_image, truth_affine = truth, np.eye(4)
-    distorted_truth_data, distorted_truth_affine = distort_image(truth_image, truth_affine,
-                                                                 flip_axis=flip_axis,
-                                                                 scale_factor=scale_factor,
-                                                                 rotate_factor=rotate_factor,
-                                                                 translate_factor=translate_factor)
-    if truth_range is None:
-        truth_data = resample_to_img(get_image(distorted_truth_data, distorted_truth_affine), truth_image,
-                                     interpolation="nearest", copy=False,
-                                     clip=True).get_data()
+    if truth is None:
+        truth_data = prev_truth_data = None
     else:
-        truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
-                                              truth_range, order=0, mode='constant', cval=0)
+        truth_image, truth_affine = truth, np.eye(4)
+        distorted_truth_data, distorted_truth_affine = distort_image(truth_image, truth_affine,
+                                                                     flip_axis=flip_axis,
+                                                                     scale_factor=scale_factor,
+                                                                     rotate_factor=rotate_factor,
+                                                                     translate_factor=translate_factor)
+        if truth_range is None:
+            truth_data = resample_to_img(get_image(distorted_truth_data, distorted_truth_affine), truth_image,
+                                         interpolation="nearest", copy=False,
+                                         clip=True).get_data()
+        else:
+            truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
+                                                  truth_range, order=0, mode='constant', cval=0)
 
-    if prev_truth_range is None:
-        prev_truth_data = None
-    else:
-        prev_truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
-                                                   prev_truth_range, order=0, mode='constant', cval=0)
+        if prev_truth_range is None:
+            prev_truth_data = None
+        else:
+            prev_truth_data = interpolate_affine_range(distorted_truth_data, distorted_truth_affine,
+                                                       prev_truth_range, order=0, mode='constant', cval=0)
 
     if mask is None:
         mask_data = None

@@ -13,12 +13,8 @@ from .utils.patches import get_patch_from_3d_data
 class DataFileDummy:
     def __init__(self, file):
         self.data = [_ for _ in file.root.data]
-        self.truth = [_ for _ in file.root.truth]
-
-        if len(file.root.mask):
-            self.mask = [_ for _ in file.root.mask]
-        else:
-            self.mask = None
+        self.truth = [_ for _ in file.root.truth] if len(file.root.truth) else None
+        self.mask = [_ for _ in file.root.mask] if len(file.root.mask) else None
 
         self.stats = att_dict(
             p1=[np.percentile(_, q=1) for _ in self.data],
@@ -39,20 +35,32 @@ def pad_samples(data_file, patch_shape, truth_downsample):
     data_file.root.data = \
         [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=data_min)
          for data, data_min in zip(data_file.data, data_file.stats.min)]
-    data_file.root.truth = \
-        [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
-         for truth in data_file.truth]
 
     data_file.root.data = \
         [np.pad(data,
                 [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape) + 1, 0) / 2).astype(int)],
                 'constant', constant_values=data_min)
          for data, data_min in zip(data_file.data, data_file.stats.min)]
-    data_file.root.truth = \
-        [np.pad(truth,
-                [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
-                'constant', constant_values=0)
-         for truth in data_file.truth]
+
+    if data_file.root.truth:
+        data_file.root.truth = \
+            [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
+             for truth in data_file.truth]
+        data_file.root.truth = \
+            [np.pad(truth,
+                    [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
+                    'constant', constant_values=0)
+             for truth in data_file.truth]
+
+    if data_file.root.mask:
+        data_file.root.mask = \
+            [np.pad(mask, [(_, _) for _ in padding], 'constant', constant_values=0)
+             for mask in data_file.mask]
+        data_file.root.mask = \
+            [np.pad(mask,
+                    [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, mask.shape) + 1, 0) / 2).astype(int)],
+                    'constant', constant_values=0)
+             for mask in data_file.mask]
 
 
 def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
@@ -130,6 +138,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                        categorical=categorical, is3d=is3d,
                        prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
                        drop_easy_patches=drop_easy_patches_train)
+
     validation_generator = \
         data_generator(data_file=data_file, index_list=validation_list, batch_size=validation_batch_size,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
@@ -199,23 +208,6 @@ def list_generator(index_list):
         yield from index_list
 
 
-class FetalSequence(Sequence):
-
-    def __init__(self, epoch_size, **kargs):
-        self.kargs = kargs
-        self.generator = data_generator(**kargs)
-        self.epoch_size = epoch_size
-
-    def __len__(self):
-        return self.epoch_size
-
-    def __getitem__(self, idx):
-        next(self.generator)
-
-    def reset(self):
-        self.generator = data_generator(**self.kargs)
-
-
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
                    shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_size=1, truth_downsample=None,
                    truth_crop=True, categorical=True, prev_truth_index=None, prev_truth_size=None,
@@ -258,7 +250,7 @@ def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_siz
 
     patch_corner = [
         np.random.randint(low=low, high=high)
-        for low, high in zip((0, 0, 0), truth.shape - np.array(patch_shape))  # - np.array(patch_shape) // 2)
+        for low, high in zip((0, 0, 0), data.shape - np.array(patch_shape))  # - np.array(patch_shape) // 2)
     ]
     if augment is not None:
         data_range = [(start, start + size) for start, size in zip(patch_corner, patch_shape)]
@@ -320,7 +312,8 @@ def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_siz
 
     if not skip_blank or np.any(truth != 0):
         x_list.append(data)
-        y_list.append(truth)
+        if truth is not None:
+            y_list.append(truth)
         if mask is not None:
             mask_list.append(mask)
 
@@ -360,17 +353,12 @@ def get_data_from_file(data_file, index, patch_shape=None):
         index, patch_index = index
         data, truth, mask = get_data_from_file(data_file, index, patch_shape=None)
         x = get_patch_from_3d_data(data, patch_shape, patch_index)
-        y = get_patch_from_3d_data(truth, patch_shape, patch_index)
-        if mask is not None:
-            z = get_patch_from_3d_data(mask, patch_shape, patch_index)
-        else:
-            z = None
+        y = get_patch_from_3d_data(truth, patch_shape, patch_index) if truth else None
+        z = get_patch_from_3d_data(mask, patch_shape, patch_index) if mask else None
     else:
-        if data_file.root.mask is not None:
-            z = data_file.root.mask[index]
-        else:
-            z = None
-        x, y = data_file.root.data[index], data_file.root.truth[index]
+        x = data_file.root.data[index]
+        y = data_file.root.truth[index] if data_file.root.truth else None
+        z = data_file.root.mask[index] if data_file.root.mask else None
     return x, y, z
 
 
@@ -383,7 +371,6 @@ def convert_data(x_list, y_list, mask_list, n_labels=1, labels=None, categorical
     # elif n_labels > 1:
     #     y = get_multi_class_labels(y, n_labels=n_labels, labels=labels)
 
-    inputs = []
     if categorical:
         y = to_categorical(y, 2)
     if is3d:
