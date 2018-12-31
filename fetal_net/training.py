@@ -23,8 +23,9 @@ def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0
                   learning_rate_patience=50, logging_file="training.log", verbosity=1,
                   early_stopping_patience=None):
     callbacks = list()
-    callbacks.append(ModelCheckpoint(model_file + '-epoch{epoch:02d}-loss{val_loss:.3f}-acc{val_binary_accuracy:.3f}.h5',
-                                     save_best_only=True, verbose=verbosity, monitor='val_loss'))
+    callbacks.append(
+        ModelCheckpoint(model_file + '-epoch{epoch:02d}-loss{val_loss:.3f}-acc{val_seg_res_binary_accuracy:.3f}.h5',
+                        save_best_only=True, verbose=verbosity, monitor='val_loss'))
     callbacks.append(CSVLogger(logging_file, append=True))
     if learning_rate_epochs:
         callbacks.append(LearningRateScheduler(partial(step_decay, initial_lrate=initial_learning_rate,
@@ -45,7 +46,7 @@ def load_old_model(model_file, verbose=True):
                       'weighted_dice_coefficient_loss': weighted_dice_coefficient_loss,
                       'vod_coefficient': vod_coefficient,
                       'vod_coefficient_loss': vod_coefficient_loss,
-                      'focal_loss': focal_loss,
+                      'focal_loss': focal_loss, -
                       'focal_loss_fixed': focal_loss,
                       'dice_and_xent': dice_and_xent}
     try:
