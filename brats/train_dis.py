@@ -45,12 +45,13 @@ else:
     Path(config["fake_split_dir"]).mkdir(parents=True, exist_ok=True)
 
     # Training params
-    config["batch_size"] = 1
-    config["validation_batch_size"] = 1  # most of times should be equal to "batch_size"
-    config["patches_per_epoch"] = 800  # patches_per_epoch / batch_size = steps per epoch
+    config["batch_size"] = 2
+    config["validation_batch_size"] = 2  # most of times should be equal to "batch_size"
+    config["patches_per_epoch"] = 100  # patches_per_epoch / batch_size = steps per epoch
 
     config["n_epochs"] = 50  # cutoff the training after this many epochs
-    config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
+    config[
+        "patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
     config["early_stop"] = 7  # training will be stopped after this many epochs without the validation loss improving
     config["initial_learning_rate"] = 1e-4
     config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
@@ -83,7 +84,7 @@ else:
             'isensee': 'isensee2017_model'
         }
     }['3D' if config["3D"] else '2D'][model_name]
-    config["model_name"] = 'dis_net'
+    config["model_name"] = 'dis_style_net'
 
     # choose loss
     config["loss"] = {
@@ -182,7 +183,7 @@ else:
     config["fake_data_file"] = os.path.join(config["base_dir"], "fake_fetal_data.h5")
     config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
     config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
-    config["scale_data"] = None  #(2, 2, 1)
+    config["scale_data"] = None  # (2, 2, 1)
 
     config["preproc"] = {
         0: "laplace",
@@ -206,13 +207,11 @@ config["fake_training_file"] = os.path.join(config["fake_split_dir"], "fake_trai
 config["fake_validation_file"] = os.path.join(config["fake_split_dir"], "fake_validation_ids.pkl")
 config["fake_test_file"] = os.path.join(config["fake_split_dir"], "fake_test_ids.pkl")
 
-
 config["input_shape"] = tuple(list(config["patch_shape"]) +
-                                  [config["patch_depth"] + (
-                                      config["prev_truth_size"] if config["prev_truth_index"] is not None else 0)])
+                              [config["patch_depth"] + (
+                                  config["prev_truth_size"] if config["prev_truth_index"] is not None else 0)])
 if config['3D']:
     config["input_shape"] = [1] + list(config["input_shape"])
-
 
 
 def fetch_training_data_files(modalities, scans_dir, return_subject_ids=False):
@@ -234,7 +233,8 @@ def fetch_training_data_files(modalities, scans_dir, return_subject_ids=False):
 
 def main(overwrite=False):
     training_files, subject_ids = \
-        fetch_training_data_files(modalities=config["training_modalities"] + ["truth"] + (config["weight_mask"] if config["weight_mask"] is not None else []),
+        fetch_training_data_files(modalities=config["training_modalities"] + ["truth"] + (
+            config["weight_mask"] if config["weight_mask"] is not None else []),
                                   scans_dir=config['scans_dir'],
                                   return_subject_ids=True)
     data_file_opened = get_data_file(training_files, subject_ids, overwrite,
@@ -328,7 +328,8 @@ def main(overwrite=False):
         while True:
             data, truth = real_gen.__next__()
             fake_data, _ = fake_gen.__next__()
-            yield [data, fake_data], [truth, np.ones([len(data)]), np.zeros([len(data)])]
+            yield [data, fake_data], [truth, np.ones([len(data)])] #, np.zeros([len(data)])]
+
     total_train_gen = merge_gen(train_generator, fake_generator_train)
     total_val_gen = merge_gen(validation_generator, fake_generator_val)
 

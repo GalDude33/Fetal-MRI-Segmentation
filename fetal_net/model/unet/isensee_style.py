@@ -2,8 +2,11 @@ from functools import partial
 
 from keras.engine import Model
 from keras.layers import Input, Add, UpSampling2D, Activation, SpatialDropout2D, Conv2D, Permute, LeakyReLU, \
-    MaxPooling2D, Reshape
+    MaxPooling2D, Reshape, Concatenate
 from keras.optimizers import Adam
+
+from keras.layers import Lambda, concatenate
+import keras.backend as K
 
 from fetal_net.model.unet.style import gram_matrix, style_loss
 from .unet import create_convolution_block, concatenate
@@ -40,7 +43,7 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
     inputs = Input(input_shape, name='main_input')
 
     def SegmentationModel():
-        seg_input= Input(input_shape, name='seg_input')
+        seg_input = Input(input_shape, name='seg_input')
         inputs_p = Permute((3, 1, 2), name='main_input_p')(seg_input)
         current_layer = inputs_p
         level_output_layers = list()
@@ -89,35 +92,39 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
 
         seg_model = Model(inputs=seg_input, outputs=activation_block, name='SegmentationModel')
         return seg_model
+
     seg_model = SegmentationModel()
-    #seg_model.load_weights('')
+    # seg_model.load_weights('')
 
     encoder_model = Model(inputs=seg_model.input,
                           outputs=seg_model.get_layer('sum_{}'.format(depth - 1)).output,
                           name='EncoderModel')
 
     seg_res = Activation(name='seg_res', activation=None)(seg_model(inputs))
-
     fake_input = Input(input_shape, name='fake_input')
     fake_enc = Activation(name='dis_fake', activation=None)(encoder_model(fake_input))
     real_enc = Activation(name='dis_real', activation=None)(encoder_model(inputs))
-    style_enc_loss = Activation(name='style', activation=None)(style_loss(fake_enc, real_enc))
+
+    layer1 = Lambda(lambda x: K.expand_dims(x, axis=-1))(fake_enc)
+    layer2 = Lambda(lambda x: K.expand_dims(x, axis=-1))(real_enc)
+    all_enc = Concatenate(axis=-1, name='gram_style')([layer1, layer2])
+    # style_enc_loss = Activation(name='style', activation=None)(style_loss(fake_enc, real_enc))
 
     model = Model(inputs=[inputs, fake_input],
-                  outputs=[seg_res, style_enc_loss],
+                  outputs=[seg_res, all_enc],  # style_enc_loss
                   name='MainModel')
     model.compile(optimizer=optimizer(lr=initial_learning_rate),
                   loss={
                       'seg_res': loss_function,
-                      'dis_fake': lambda x: x,
+                      'gram_style': style_loss,
                   },
                   loss_weights={
                       'seg_res': 1,
-                      'dis_fake': 1,
+                      'gram_style': 1,
                   },
                   metrics={
-                      'seg_res': metrics,
-                      'dis_style': 'accuracy',
+                      'seg_res': metrics
+                      #'all_enc': 'accuracy',
                   })
     return model
 
