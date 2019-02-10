@@ -222,7 +222,7 @@ def main(overwrite=False):
                                                                gen_model.predict(real_patches,
                                                                                  batch_size=config["batch_size"]),
                                                                dis_model.output_shape)
-                    outputs = dis_model.train_on_batch(d_x_batch, d_y_batch)
+                    outputs += dis_model.train_on_batch(d_x_batch, d_y_batch)
                 outputs /= scheduler.get_dsteps()
                 pbar.postfix['dis'] = build_dsc(dis_model.metrics_names, outputs)
                 pbar.refresh()
