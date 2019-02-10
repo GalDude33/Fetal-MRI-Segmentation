@@ -28,7 +28,7 @@ def save_nifti(data, path):
 def secondary_prediction(mask, vol, config2, model2_path=None,
                          preprocess_method2=None, norm_params2=None,
                          overlap_factor=0.9):
-    model2 = load_old_model(get_last_model_path(model2_path))
+    model2 = load_old_model(get_last_model_path(model2_path), config=config2)
     pred = mask
     bbox_start, bbox_end = find_bounding_box(pred)
     check_bounding_box(pred, bbox_start, bbox_end)
@@ -80,7 +80,7 @@ def main(input_path, output_path, overlap_factor,
          config, model_path, preprocess_method=None, norm_params=None,
          config2=None, model2_path=None, preprocess_method2=None, norm_params2=None):
     print(model_path)
-    model = load_old_model(get_last_model_path(model_path))
+    model = load_old_model(get_last_model_path(model_path), config=config)
     print('Loading nifti from {}...'.format(input_path))
     nifti = read_img(input_path)
     print('Predicting mask...')
@@ -116,7 +116,7 @@ def main(input_path, output_path, overlap_factor,
         prediction = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
                                           config2=config2, model2_path=model2_path,
                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
-                                          overlap_factor=0.95)
+                                          overlap_factor=overlap_factor)
         save_nifti(prediction, os.path.join(output_path, scan_name+'pred_roi.nii.gz'))
 
     print('Saving to {}'.format(output_path))
