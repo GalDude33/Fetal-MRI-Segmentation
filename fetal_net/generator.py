@@ -64,7 +64,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            categorical=True, is3d=False,
                                            prev_truth_index=None, prev_truth_size=None,
                                            drop_easy_patches_train=False, drop_easy_patches_val=False,
-                                           pad_samples=0):
+                                           samples_pad=3):
     """
     Creates the training and validation generators that can be used when training the model.
     :param prev_truth_inedx:
@@ -100,7 +100,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     if not validation_batch_size:
         validation_batch_size = batch_size
 
-    data_file = DataFileDummy(data_file, pad_samples)
+    data_file = DataFileDummy(data_file, samples_pad)
 
     pad_samples(data_file, patch_shape, truth_downsample or 1)
 
