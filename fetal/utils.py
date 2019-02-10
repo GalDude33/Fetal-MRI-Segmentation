@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 
 from collections import defaultdict
@@ -8,6 +9,41 @@ from sklearn.preprocessing.data import _handle_zeros_in_scale
 from sklearn.utils.validation import check_is_fitted, FLOAT_DTYPES, check_array
 
 import numpy as np
+
+import fetal_net.preprocess
+from fetal_net.data import write_data_to_file
+
+
+def create_data_file(config):
+    training_files, subject_ids = fetch_training_data_files(config, return_subject_ids=True)
+    if config.get('preproc', None) is not None:
+        preproc_func = getattr(fetal_net.preprocess, config['preproc'])
+    else:
+        preproc_func = None
+    _, (mean, std) = write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids,
+                                        normalize=config['normalization'], scale=config.get('scale_data', None),
+                                        preproc=preproc_func)
+    with open(os.path.join(config["base_dir"], 'norm_params.json'), mode='w') as f:
+        json.dump({'mean': mean, 'std': std}, f)
+
+
+def fetch_training_data_files(config, return_subject_ids=False):
+    training_data_files = list()
+    subject_ids = list()
+
+    for subject_dir in sorted(glob.glob(os.path.join(config["scans_dir"], "*")),
+                              key=os.path.basename):
+        subject_ids.append(os.path.basename(subject_dir))
+        subject_files = list()
+        for modality in config["training_modalities"] + ["truth"] + (
+                config["weight_mask"] if config["weight_mask"] is not None else []):
+            subject_files.append(os.path.join(subject_dir, modality + ".nii" + config["ext"]))
+        training_data_files.append(tuple(subject_files))
+    if return_subject_ids:
+        return training_data_files, subject_ids
+    else:
+        return training_data_files
+
 
 def get_last_model_path(model_file_path):
     return sorted(glob.glob(model_file_path + '*.h5'), key=os.path.getmtime)[-1]
@@ -25,6 +61,7 @@ class AttributeDict(defaultdict):
 
     def __setattr__(self, key, value):
         self[key] = value
+
 
 class MinMaxScaler(BaseEstimator, TransformerMixin):
     """Transforms features by scaling each feature to a given range.
