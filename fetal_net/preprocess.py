@@ -14,11 +14,13 @@ def laplace_norm(d):
     return norm_minmax(laplace(d))
 
 
+from scipy.ndimage import gaussian_gradient_magnitude
 def grad(d):
-    grads = np.zeros_like(d)
-    for a in range(d.squeeze().ndim):
-        grads += np.power(ndimage.sobel(d.squeeze(), axis=a), 2)
-    return np.sqrt(grads)
+    return gaussian_gradient_magnitude(d, sigma=(1,1,1))
+    #grads = np.zeros_like(d)
+    #for a in range(d.squeeze().ndim):
+    #    grads += np.power(ndimage.sobel(d.squeeze(), axis=a), 2)
+    #return np.sqrt(grads)
 
 
 def grad_norm(d):
