@@ -1,4 +1,4 @@
-from brats.preprocess import window_intensities
+from fetal.preprocess import window_intensities
 
 from glob import glob
 from os import path
@@ -17,6 +17,7 @@ for p in glob(path.join(src_dir, '*')):
     window_intensities(in_file=path.join(src_dir, subject_dir, 'volume.nii' + ext),
                        out_file=path.join(dst_dir, subject_dir, 'volume.nii' + ext),
                        max_percent=99)
+
     copyfile(src=path.join(src_dir, subject_dir, 'truth.nii' + ext),
              dst=path.join(dst_dir, subject_dir, 'truth.nii' + ext))
     print(subject_dir)

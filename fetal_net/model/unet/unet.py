@@ -22,7 +22,7 @@ except ImportError:
 def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_rate=0.00001, deconvolution=False,
                   depth=4, n_base_filters=32, include_label_wise_dice_coefficients=False,
                   batch_normalization=False, activation_name="sigmoid", loss_function=dice_coefficient_loss,
-                  dropout_rate=0, skip_connections=False, **kargs):
+                  dropout_rate=0, **kargs):
     """
     Builds the 3D UNet Keras model.f
     :param metrics: List metrics to be calculated during model training (default is dice coefficient).
@@ -59,17 +59,8 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
                                           batch_normalization=batch_normalization)
         if dropout_rate > 0:
             layer1 = SpatialDropout2D(rate=dropout_rate)(layer1)
-        layer2 = create_convolution_block(input_layer=layer1, n_filters=n_base_filters * (2 ** layer_depth) * 2,
-                                          batch_normalization=batch_normalization)
-
-        current_layer = layer2
-        if skip_connections:
-            added_layer = input_layer
-            if layer_depth == 0:
-                added_layer = create_convolution_block(input_layer=added_layer, n_filters=n_base_filters * (2 ** layer_depth) * 2,
-                                                       batch_normalization=batch_normalization, kernel=(1,1))
-            current_layer = Add()([current_layer, added_layer])
-
+        current_layer = create_convolution_block(input_layer=layer1, n_filters=n_base_filters * (2 ** layer_depth) * 2,
+                                                 batch_normalization=batch_normalization)
         levels.append(current_layer)
 
         if layer_depth < depth - 1:
@@ -87,9 +78,6 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
         current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[1],
                                                  input_layer=current_layer,
                                                  batch_normalization=batch_normalization)
-
-        if skip_connections:
-            current_layer = Add()([current_layer, concat])
 
     final_convolution = Conv2D(n_labels, (1, 1))(current_layer)
     act = Activation(activation_name)(final_convolution)

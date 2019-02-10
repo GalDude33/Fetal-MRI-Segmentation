@@ -3,7 +3,7 @@ import random
 import numpy as np
 from keras.utils import to_categorical, Sequence
 
-from brats.utils import AttributeDict as att_dict
+from fetal.utils import AttributeDict as att_dict
 from fetal_net.utils.utils import resize
 from .augment import augment_data, random_permutation_x_y, get_image
 from .utils import pickle_dump, pickle_load
