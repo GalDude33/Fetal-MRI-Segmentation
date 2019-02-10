@@ -4,12 +4,6 @@ import os
 
 from collections import defaultdict
 
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.preprocessing.data import _handle_zeros_in_scale
-from sklearn.utils.validation import check_is_fitted, FLOAT_DTYPES, check_array
-
-import numpy as np
-
 import fetal_net.preprocess
 from fetal_net.data import write_data_to_file
 
