@@ -9,7 +9,7 @@ from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, R
     LambdaCallback
 from keras.models import load_model, Model
 
-import fetal_net
+import fetal_net.model
 from fetal_net.metrics import (dice_coefficient, dice_coefficient_loss, dice_coef, dice_coef_loss,
                                weighted_dice_coefficient_loss, weighted_dice_coefficient,
                                vod_coefficient, vod_coefficient_loss, focal_loss, dice_and_xent, double_dice_loss)
