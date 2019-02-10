@@ -278,7 +278,7 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
         piecewise_affine_scale = np.random.random() * piecewise_affine["scale"]
     else:
         piecewise_affine_scale = 0
-    if elastic_transform is not None:
+    if (elastic_transform is not None) and (elastic_transform["alpha"] > 0):
         elastic_transform_scale = np.random.random() * elastic_transform["alpha"]
     else:
         elastic_transform_scale = 0
