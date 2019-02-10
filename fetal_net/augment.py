@@ -7,8 +7,7 @@ from skimage.exposure import exposure
 from skimage.filters import gaussian
 from skimage.util import random_noise
 
-from brats.utils import MinMaxScaler
-from fetal_net.utils.utils import get_image, interpolate_affine_range
+from fetal_net.utils.utils import get_image, interpolate_affine_range, MinMaxScaler
 from imgaug import augmenters as iaa
 
 
