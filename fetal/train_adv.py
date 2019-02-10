@@ -7,7 +7,6 @@ from keras import Input, Model
 from keras.engine.network import Network
 from keras.layers import Concatenate, Activation
 from keras.optimizers import Adam
-from keras.utils.generic_utils import to_list
 from tqdm import tqdm
 
 import fetal_net
@@ -21,6 +20,10 @@ from fetal_net.model.fetal_net import fetal_envelope_model
 from fetal_net.training import load_old_model
 
 config = get_config()
+if not "dis_model_name" in config:
+    config["dis_model_name"] = "discriminator_image"
+if not "dis_loss" in config:
+    config["dis_loss"] = "binary_crossentropy_loss"
 
 
 class Scheduler:
