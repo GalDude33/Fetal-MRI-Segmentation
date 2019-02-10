@@ -11,9 +11,9 @@ from .utils.patches import get_patch_from_3d_data
 
 
 class DataFileDummy:
-    def __init__(self, file):
-        self.data = [_ for _ in file.root.data]
-        self.truth = [_ for _ in file.root.truth]
+    def __init__(self, file, pad=0):
+        self.data = [np.pad(_,pad, 'constant', constant_values=_.min()) for _ in file.root.data]
+        self.truth = [np.pad(_,pad, 'constant', constant_values=0) for _ in file.root.truth]
 
         if len(file.root.mask):
             self.mask = [_ for _ in file.root.mask]
@@ -63,7 +63,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            patches_per_epoch=1,
                                            categorical=True, is3d=False,
                                            prev_truth_index=None, prev_truth_size=None,
-                                           drop_easy_patches_train=False, drop_easy_patches_val=False):
+                                           drop_easy_patches_train=False, drop_easy_patches_val=False,
+                                           pad_samples=0):
     """
     Creates the training and validation generators that can be used when training the model.
     :param prev_truth_inedx:
@@ -99,7 +100,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     if not validation_batch_size:
         validation_batch_size = batch_size
 
-    data_file = DataFileDummy(data_file)
+    data_file = DataFileDummy(data_file, pad_samples)
 
     pad_samples(data_file, patch_shape, truth_downsample or 1)
 

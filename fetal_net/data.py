@@ -23,10 +23,11 @@ def write_image_data_to_file(image_files, data_storage, truth_storage, mask_stor
         images = [read_img(_) for _ in set_of_files]
         subject_data = [image.get_data() for image in images]
         if scale is not None:
-            subject_data = [zoom(sub_data, scale) for sub_data in subject_data]
+            subject_data[0] = zoom(subject_data[0], scale) # for sub_data in subject_data]
+            subject_data[1] = zoom(subject_data[1], scale, order=0) # for sub_data in subject_data]
         if preproc is not None:
             subject_data[0] = preproc(subject_data[0])
-
+        print(subject_data[0].shape)
         add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data, truth_dtype)
     return data_storage, truth_storage, mask_storage
 

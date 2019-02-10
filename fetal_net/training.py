@@ -10,10 +10,9 @@ from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, R
 from keras.models import load_model, Model
 
 import fetal_net
-from fetal_net import surface_distance
 from fetal_net.metrics import (dice_coefficient, dice_coefficient_loss, dice_coef, dice_coef_loss,
                                weighted_dice_coefficient_loss, weighted_dice_coefficient,
-                               vod_coefficient, vod_coefficient_loss, focal_loss, dice_and_xent)
+                               vod_coefficient, vod_coefficient_loss, focal_loss, dice_and_xent, double_dice_loss)
 
 K.set_image_dim_ordering('th')
 from multiprocessing import cpu_count
@@ -53,7 +52,8 @@ def load_old_model(model_file, verbose=True, config=None) -> Model:
                       'vod_coefficient_loss': vod_coefficient_loss,
                       'focal_loss': focal_loss,
                       'focal_loss_fixed': focal_loss,
-                      'dice_and_xent': dice_and_xent}
+                      'dice_and_xent': dice_and_xent,
+                      'double_dice_loss': double_dice_loss }
     try:
         from keras_contrib.layers import InstanceNormalization
         custom_objects["InstanceNormalization"] = InstanceNormalization
@@ -111,7 +111,7 @@ def train_model(model, model_file, training_generator, validation_generator, ste
                         epochs=n_epochs,
                         validation_data=validation_generator,
                         validation_steps=validation_steps,
-                        max_queue_size=20,
+                        max_queue_size=15,
                         workers=1,
                         use_multiprocessing=False,
                         callbacks=get_callbacks(model_file,

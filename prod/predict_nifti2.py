@@ -71,38 +71,57 @@ def preproc_and_norm(data, preprocess_method=None, norm_params=None, scale=None,
         preproc_func = getattr(fetal_net.preprocess, preproc)
         data = preproc_func(data)
 
-    if norm_params is not None and any(norm_params.values()):
-        data = normalize_data(data, mean=norm_params['mean'], std=norm_params['std'])
+    data = normalize_data(data, mean=data.mean(), std=data.std())
+    #if norm_params is not None and any(norm_params.values()):
+    #    data = normalize_data(data, mean=norm_params['mean'], std=norm_params['std'])
     return data
 
 
 def main(input_path, output_path, overlap_factor,
          config, model_path, preprocess_method=None, norm_params=None,
-         config2=None, model2_path=None, preprocess_method2=None, norm_params2=None):
+         config2=None, model2_path=None, preprocess_method2=None, norm_params2=None, z_scale=None, xy_scale=None):
     print(model_path)
     model = load_old_model(get_last_model_path(model_path), config=config)
     print('Loading nifti from {}...'.format(input_path))
     nifti = read_img(input_path)
     print('Predicting mask...')
-    data = nifti.get_fdata().astype(np.float)
+    data = nifti.get_fdata().astype(np.float).squeeze()
+    print('original_shape: '+str(data.shape))
+    scan_name = Path(input_path).name.split('.')[0]
 
-    scan_name = Path(input_path).stem
+    if (z_scale is None):
+        z_scale = 1.0
+    if (xy_scale is None):
+        xy_scale = 1.0
+    if z_scale != 1.0 or xy_scale != 1.0:
+        data = ndimage.zoom(data, [xy_scale,xy_scale,z_scale])
 
     data = preproc_and_norm(data, preprocess_method, norm_params,
                             scale=config.get('scale_data', None),
                             preproc=config.get('preproc', None))
 
+    save_nifti(data, os.path.join(output_path, scan_name+'_data.nii.gz'))
+
+    data = np.pad(data, 3, 'constant', constant_values=data.min())
+
+    print('Shape: '+str(data.shape))
     prediction = \
         patch_wise_prediction(model=model,
                               data=np.expand_dims(data, 0),
                               overlap_factor=overlap_factor,
                               patch_shape=config["patch_shape"] + [config["patch_depth"]])
 
+    # unpad
+    prediction = prediction[3:-3,3:-3,3:-3]
+
     # revert to original size
     if config.get('scale_data', None) is not None:
-        prediction = ndimage.zoom(prediction, np.divide(1, config['zoom']))
+        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1,1,1], config.get('scale_data', None)), order=0)[..., np.newaxis]
 
     save_nifti(prediction, os.path.join(output_path, scan_name+'_pred.nii.gz'))
+
+    if z_scale != 1.0 or xy_scale != 1.0:
+        prediction = ndimage.zoom(prediction.squeeze(), [1.0/xy_scale,1.0/xy_scale,1.0/z_scale], order=1)[..., np.newaxis]
 
     print('Post-processing mask...')
     if prediction.shape[-1] > 1:
@@ -112,7 +131,6 @@ def main(input_path, output_path, overlap_factor,
 
     if config2 is not None:
         nifti = read_img(input_path)
-        print('Making secondary prediction... [6]')
         prediction = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
                                           config2=config2, model2_path=model2_path,
                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
@@ -140,6 +158,10 @@ if __name__ == '__main__':
                         type=str, required=True)
     parser.add_argument("--overlap_factor", help="specifies overlap between prediction patches",
                         type=float, default=0.9)
+    parser.add_argument("--z_scale", help="specifies overlap between prediction patches",
+                        type=float, default=1)
+    parser.add_argument("--xy_scale", help="specifies overlap between prediction patches",
+                        type=float, default=1)
 
     # Params for primary prediction
     parser.add_argument("--config_dir", help="specifies config dir path",
@@ -155,6 +177,8 @@ if __name__ == '__main__':
 
     opts = parser.parse_args()
 
+    Path(opts.output_folder).mkdir(exist_ok=True)
+
     # 1
     _config, _norm_params, _model_path = get_params(opts.config_dir)
     # 2
@@ -165,4 +189,4 @@ if __name__ == '__main__':
 
     main(opts.input_nii, opts.output_folder, overlap_factor=opts.overlap_factor,
          config=_config, model_path=_model_path, preprocess_method=opts.preprocess, norm_params=_norm_params,
-         config2=_config2, model2_path=_model2_path, preprocess_method2=opts.preprocess2, norm_params2=_norm_params2)
+         config2=_config2, model2_path=_model2_path, preprocess_method2=opts.preprocess2, norm_params2=_norm_params2, z_scale=opts.z_scale, xy_scale=opts.xy_scale)
