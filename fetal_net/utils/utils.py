@@ -10,6 +10,9 @@ from .nilearn_custom_utils.nilearn_utils import crop_img_to
 from .sitk_utils import resample_to_spacing, calculate_origin_offset
 
 from scipy.ndimage import map_coordinates
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing.data import _handle_zeros_in_scale
+from sklearn.utils.validation import check_is_fitted, FLOAT_DTYPES, check_array
 
 
 def get_image(data, affine=None, nib_class=nib.Nifti1Image):
