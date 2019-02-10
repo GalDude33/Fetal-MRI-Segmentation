@@ -58,6 +58,8 @@ class Scheduler:
 
         if self.steps_stuck > self.lr_patience:
             self.lr *= self.lr_decay
+            print('Reducing LR to {}'.format(self.lr))
+
         # if key in self.schedules['step_decay']:
         # self.dsteps = max(int(self.init_dsteps * self.schedules['step_decay'][key]), 1)
         # self.gsteps = max(int(self.init_gsteps * self.schedules['step_decay'][key]), 1)
@@ -67,7 +69,7 @@ def build_dsc(out_labels, outs):
     s = ''
     for l, o in zip(out_labels, outs):
         s = s + '{}={:.3f}, '.format(l, o)
-    return s[:-2]
+    return s[:-2]+'|'
 
 
 def input2discriminator(real_patches, real_segs, fake_segs, d_out_shape):
@@ -128,8 +130,8 @@ def main(overwrite=False):
                'loss_function': dis_loss_func})
 
         if not overwrite \
-                and len(glob.glob(config["model_file"] + 'dis_*.h5')) > 0 \
-                and len(glob.glob(config["model_file"] + 'gen_*.h5')) > 0:
+                and len(glob.glob(config["model_file"] + 'd_*.h5')) > 0 \
+                and len(glob.glob(config["model_file"] + 'g_*.h5')) > 0:
             dis_model_path = get_last_model_path(config["model_file"] + 'dis_')
             gen_model_path = get_last_model_path(config["model_file"] + 'gen_')
             print('Loading dis model from: {}'.format(dis_model_path))
@@ -202,16 +204,18 @@ def main(overwrite=False):
 
     # start training
     dis_steps = 1
-    gen_steps = 1
+    gen_steps = 10
     scheduler = Scheduler(dis_steps, gen_steps,
                           init_lr=config["initial_learning_rate"],
                           lr_patience=config["patience"],
                           lr_decay=config["learning_rate_drop"])
 
     best_loss = np.inf
+
     for epoch in range(config["n_epochs"]):
-        print('{}: '.format(epoch), end='')
-        with tqdm(range(n_train_steps // gen_steps),
+        #print('{}: '.format(epoch), end='')
+        postfix={'g': None, 'd': None} #, 'val_g': None, 'val_d': None}
+        with tqdm(range(n_train_steps // gen_steps), dynamic_ncols=True,
                   postfix={'gen': None, 'dis': None, 'val_gen': None, 'val_dis': None, None: None}) as pbar:
             for n_round in pbar:
                 # train D
@@ -224,8 +228,8 @@ def main(overwrite=False):
                                                                dis_model.output_shape)
                     outputs += dis_model.train_on_batch(d_x_batch, d_y_batch)
                 outputs /= scheduler.get_dsteps()
-                pbar.postfix['dis'] = build_dsc(dis_model.metrics_names, outputs)
-                pbar.refresh()
+                postfix['d'] = build_dsc(dis_model.metrics_names, outputs)
+                pbar.set_postfix(**postfix)
 
                 # train G (freeze discriminator)
                 outputs = np.zeros(combined_model.metrics_names.__len__())
@@ -235,14 +239,14 @@ def main(overwrite=False):
                     outputs += combined_model.train_on_batch(g_x_batch, g_y_batch)
                 outputs /= scheduler.get_gsteps()
 
-                pbar.postfix['gen'] = build_dsc(combined_model.metrics_names, outputs)
-                pbar.refresh()
+                postfix['g'] = build_dsc(combined_model.metrics_names, outputs)
+                pbar.set_postfix(**postfix)
 
             # evaluate on validation set
-            dis_metrics = np.zeros([dis_model.metrics_names.__len__()])
-            gen_metrics = np.zeros([gen_model.metrics_names.__len__()])
+            dis_metrics = np.zeros(dis_model.metrics_names.__len__(), dtype=float)
+            gen_metrics = np.zeros(gen_model.metrics_names.__len__(), dtype=float)
             evaluation_rounds = 10
-            if n_round in range(evaluation_rounds):  # rounds_for_evaluation:
+            for n_round in range(evaluation_rounds):  # rounds_for_evaluation:
                 # D
                 val_patches, val_segs = next(validation_generator)
                 d_x_test, d_y_test = input2discriminator(val_patches, val_segs,
@@ -253,13 +257,13 @@ def main(overwrite=False):
                                                   verbose=0)
 
                 # G
-                gen_x_test, gen_y_test = input2gan(val_patches, val_segs, dis_model.output_shape)
-                gen_metrics += gen_model.evaluate(gen_x_test, gen_y_test,
+                #gen_x_test, gen_y_test = input2gan(val_patches, val_segs, dis_model.output_shape)
+                gen_metrics += gen_model.evaluate(val_patches, val_segs,
                                                   batch_size=config["validation_batch_size"],
                                                   verbose=0)
 
-            dis_metrics /= evaluation_rounds
-            gen_metrics /= evaluation_rounds
+            dis_metrics /= float(evaluation_rounds)
+            gen_metrics /= float(evaluation_rounds)
             # save the model and weights with the best validation loss
             if gen_metrics[0] < best_loss:
                 with open(os.path.join(config["base_dir"], "g_{}_{:.3f}.json".format(n_round, gen_metrics[0])),
@@ -268,8 +272,11 @@ def main(overwrite=False):
                 gen_model.save_weights(
                     os.path.join(config["base_dir"], "g_{}_{:.3f}.h5".format(n_round, gen_metrics[0])))
 
-            pbar.postfix['val_dis'] = build_dsc(dis_model.metrics_names, dis_metrics)
-            pbar.postfix['val_gen'] = build_dsc(combined_model.metrics_names, gen_metrics)
+            postfix['val_d'] = build_dsc(dis_model.metrics_names, dis_metrics)
+            postfix['val_g'] = build_dsc(combined_model.metrics_names, gen_metrics)
+            pbar.set_postfix(**postfix)
+            print('val_d: '+postfix['val_d'], end=' | ')
+            print('val_g: '+postfix['val_g'])
             pbar.refresh()
 
             # update step sizes, learning rates
