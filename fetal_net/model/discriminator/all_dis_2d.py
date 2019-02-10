@@ -1,12 +1,12 @@
 import keras.backend as K
 from keras import Model, Input
-from keras.layers import BatchNormalization, Conv3D, Dense, GlobalAveragePooling3D, LeakyReLU
+from keras.layers import Dense, Conv2D, GlobalAveragePooling2D, LeakyReLU
 from keras.losses import binary_crossentropy
 from keras.optimizers import Adam
 from keras_contrib.layers import InstanceNormalization
 
 
-def discriminator_image_3d(input_shape=(None, 2, 64, 128, 128),
+def discriminator_image_2d(input_shape=(None, 2, 64, 128, 128),
                            n_base_filters=16,
                            optimizer=Adam, initial_learning_rate=5e-4,
                            depth=5, dropout_rate=0.3, **kargs):
@@ -21,17 +21,14 @@ def discriminator_image_3d(input_shape=(None, 2, 64, 128, 128),
     kernel_size = 3  # kernel size
     stride_size = 2  # stride
     padding = 'same'  # 'valid'
-    scale_only_xy = 1
 
     inputs = Input(input_shape)
 
     conv = inputs
-    for level in range(scale_only_xy):
-        conv = conv_block(conv, level, 16, kernel_size, padding, (stride_size, stride_size, 1))
-    for level in range(depth - scale_only_xy):
+    for level in range(depth):
         conv = conv_block(conv, level, 16, kernel_size, padding, stride_size)
 
-    gap = GlobalAveragePooling3D()(conv)
+    gap = GlobalAveragePooling2D()(conv)
     outputs = Dense(1, activation='sigmoid')(gap)
 
     d = Model(inputs, outputs, name='Discriminator')
@@ -48,16 +45,18 @@ def discriminator_image_3d(input_shape=(None, 2, 64, 128, 128),
     return d
 
 
-def mini_conv_block(input_layer, n_filters, kernel_size, padding, strides):
-    conv = Conv3D(n_filters, kernel_size=kernel_size, padding=padding, strides=strides)(input_layer)
+def mini_conv_block(input_layer, n_filters, kernel_size, padding, strides,
+                    norm_layer=InstanceNormalization):
+    conv = Conv2D(n_filters, kernel_size=kernel_size, padding=padding, strides=strides)(input_layer)
     #conv = BatchNormalization(scale=False, axis=1)(conv)
-    conv = InstanceNormalization(axis=1)(conv)
+    conv = norm_layer(axis=1)(conv)
     conv = LeakyReLU()(conv)
     return conv
 
 
-def conv_block(input_layer, level, n_base_filters, kernel_size, padding, strides):
+def conv_block(input_layer, level, n_base_filters, kernel_size, padding, strides,
+               norm_layer=InstanceNormalization):
     n_filters = (2 ** level) * n_base_filters
-    conv = mini_conv_block(input_layer, n_filters, kernel_size, padding, strides)
-    conv = mini_conv_block(conv, n_filters, kernel_size, padding, strides)
+    conv = mini_conv_block(input_layer, level, n_base_filters, kernel_size, padding, strides, norm_layer)
+    conv = mini_conv_block(conv, level, n_base_filters, kernel_size, padding, strides, norm_layer)
     return conv

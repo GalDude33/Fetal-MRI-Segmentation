@@ -77,8 +77,8 @@ def input2discriminator(real_patches, real_segs, fake_segs, d_out_shape):
     d_x_batch = np.concatenate((real, fake), axis=0)
 
     # real : 1, fake : 0
-    d_y_batch = np.ones([d_x_batch.shape[0]] + list(d_out_shape)[1:])
-    d_y_batch[real.shape[0]:, ...] = 0
+    d_y_batch = 0.9 * np.ones([d_x_batch.shape[0]] + list(d_out_shape)[1:])
+    d_y_batch[real.shape[0]:, ...] = 0.1
 
     return d_x_batch, d_y_batch
 
@@ -86,7 +86,7 @@ def input2discriminator(real_patches, real_segs, fake_segs, d_out_shape):
 def input2gan(real_patches, real_segs, d_out_shape):
     g_x_batch = real_patches
     # set 1 to all labels (real : 1, fake : 0)
-    g_y_batch = [np.ones([real_patches.shape[0]] + list(d_out_shape)[1:]),
+    g_y_batch = [np.ones([real_patches.shape[0]] + list(d_out_shape)[1:])*0.9,
                  real_segs]
     return g_x_batch, g_y_batch
 
@@ -210,8 +210,7 @@ def main(overwrite=False):
 
     best_loss = np.inf
     for epoch in range(config["n_epochs"]):
-        print('{}: '.format(epoch), end='')
-        with tqdm(range(n_train_steps // gen_steps),
+        with tqdm(range(n_train_steps // gen_steps), dynamic_ncols=True,
                   postfix={'gen': None, 'dis': None, 'val_gen': None, 'val_dis': None, None: None}) as pbar:
             for n_round in pbar:
                 # train D
@@ -242,7 +241,7 @@ def main(overwrite=False):
             dis_metrics = np.zeros([dis_model.metrics_names.__len__()])
             gen_metrics = np.zeros([gen_model.metrics_names.__len__()])
             evaluation_rounds = 10
-            if n_round in range(evaluation_rounds):  # rounds_for_evaluation:
+            for n_round in range(evaluation_rounds):  # rounds_for_evaluation:
                 # D
                 val_patches, val_segs = next(validation_generator)
                 d_x_test, d_y_test = input2discriminator(val_patches, val_segs,
