@@ -1,6 +1,7 @@
 import keras.backend as K
 from keras import Model, Input
-from keras.layers import Dense, Conv2D, GlobalAveragePooling2D, LeakyReLU
+from keras.layers import Conv2D, Dense, GlobalAveragePooling2D, LeakyReLU, SpatialDropout2D, \
+    AveragePooling2D
 from keras.losses import binary_crossentropy
 from keras.optimizers import Adam
 from keras_contrib.layers import InstanceNormalization
@@ -21,12 +22,15 @@ def discriminator_image_2d(input_shape=(None, 2, 64, 128, 128),
     kernel_size = 3  # kernel size
     stride_size = 2  # stride
     padding = 'same'  # 'valid'
+    scale_only_xy = 1
 
     inputs = Input(input_shape)
 
     conv = inputs
-    for level in range(depth):
-        conv = conv_block(conv, level, 16, kernel_size, padding, stride_size)
+    for level in range(scale_only_xy):
+        conv = conv_block(conv, level, n_base_filters, kernel_size, padding, (stride_size, stride_size, 1), dropout_rate=dropout_rate)
+    for level in range(scale_only_xy, depth):
+        conv = conv_block(conv, level, n_base_filters, kernel_size, padding, strides=1, dropout_rate=dropout_rate)
 
     gap = GlobalAveragePooling2D()(conv)
     outputs = Dense(1, activation='sigmoid')(gap)
@@ -40,23 +44,23 @@ def discriminator_image_2d(input_shape=(None, 2, 64, 128, 128),
 
     d.compile(optimizer=optimizer(lr=initial_learning_rate, beta_1=0.5),
               loss=d_loss,
-              metrics=['accuracy'])
+              metrics=['mae'])
 
     return d
 
 
-def mini_conv_block(input_layer, n_filters, kernel_size, padding, strides,
-                    norm_layer=InstanceNormalization):
+def mini_conv_block(input_layer, n_filters, kernel_size, padding, strides=1):
     conv = Conv2D(n_filters, kernel_size=kernel_size, padding=padding, strides=strides)(input_layer)
     #conv = BatchNormalization(scale=False, axis=1)(conv)
-    conv = norm_layer(axis=1)(conv)
+    conv = InstanceNormalization(axis=1)(conv)
     conv = LeakyReLU()(conv)
     return conv
 
 
-def conv_block(input_layer, level, n_base_filters, kernel_size, padding, strides,
-               norm_layer=InstanceNormalization):
-    n_filters = (2 ** level) * n_base_filters
-    conv = mini_conv_block(input_layer, level, n_base_filters, kernel_size, padding, strides, norm_layer)
-    conv = mini_conv_block(conv, level, n_base_filters, kernel_size, padding, strides, norm_layer)
+def conv_block(input_layer, level, n_base_filters, kernel_size, padding, strides, dropout_rate=0.3):
+    n_filters = min(128, (2 ** level) * n_base_filters)
+    conv = mini_conv_block(input_layer, n_filters, kernel_size, padding, strides)
+    dropout = SpatialDropout2D(rate=dropout_rate, data_format='channels_first')(conv)
+    conv = mini_conv_block(dropout, n_filters, kernel_size, padding)
+    conv = AveragePooling2D()(conv)
     return conv

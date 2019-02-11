@@ -1,6 +1,7 @@
 import keras.backend as K
 from keras import Model, Input
-from keras.layers import BatchNormalization, Conv3D, Dense, GlobalAveragePooling3D, LeakyReLU, SpatialDropout3D, MaxPooling3D
+from keras.layers import Conv3D, Dense, GlobalAveragePooling3D, LeakyReLU, SpatialDropout3D, \
+    AveragePooling3D
 from keras.losses import binary_crossentropy
 from keras.optimizers import Adam
 from keras_contrib.layers import InstanceNormalization
@@ -60,6 +61,6 @@ def conv_block(input_layer, level, n_base_filters, kernel_size, padding, strides
     n_filters = min(128, (2 ** level) * n_base_filters)
     conv = mini_conv_block(input_layer, n_filters, kernel_size, padding, strides)
     dropout = SpatialDropout3D(rate=dropout_rate, data_format='channels_first')(conv)
-    conv = mini_conv_block(conv, n_filters, kernel_size, padding)
-    conv = MaxPooling3D()(conv)
+    conv = mini_conv_block(dropout, n_filters, kernel_size, padding)
+    conv = AveragePooling3D()(conv)
     return conv
