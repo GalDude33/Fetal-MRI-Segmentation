@@ -12,8 +12,8 @@ from .utils.patches import get_patch_from_3d_data
 
 class DataFileDummy:
     def __init__(self, file, pad=0):
-        self.data = [np.pad(_,pad, 'constant', constant_values=_.min()) for _ in file.root.data]
-        self.truth = [np.pad(_,pad, 'constant', constant_values=0) for _ in file.root.truth]
+        self.data = [np.pad(_, pad, 'constant', constant_values=_.min()) for _ in file.root.data]
+        self.truth = [np.pad(_, pad, 'constant', constant_values=0) for _ in file.root.truth]
 
         if len(file.root.mask):
             self.mask = [_ for _ in file.root.mask]
@@ -64,7 +64,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            categorical=True, is3d=False,
                                            prev_truth_index=None, prev_truth_size=None,
                                            drop_easy_patches_train=False, drop_easy_patches_val=False,
-                                           samples_pad=3):
+                                           samples_pad=3, val_augment=None):
     """
     Creates the training and validation generators that can be used when training the model.
     :param prev_truth_inedx:
@@ -119,11 +119,12 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     num_training_steps = patches_per_epoch // batch_size
     print("Number of training steps: ", num_training_steps)
 
-    num_validation_steps = patches_per_epoch // batch_size
+    num_validation_steps = patches_per_epoch // validation_batch_size
     print("Number of validation steps: ", num_validation_steps)
 
     training_generator = \
-        data_generator(data_file=data_file, index_list=training_list, batch_size=batch_size, augment=augment,
+        data_generator(data_file=data_file, index_list=training_list, batch_size=batch_size,
+                       augment=augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                        skip_blank=skip_blank_train,
                        truth_index=truth_index, truth_size=truth_size,
@@ -133,6 +134,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                        drop_easy_patches=drop_easy_patches_train)
     validation_generator = \
         data_generator(data_file=data_file, index_list=validation_list, batch_size=validation_batch_size,
+                       augment=val_augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                        skip_blank=skip_blank_val,
                        truth_index=truth_index, truth_size=truth_size,
