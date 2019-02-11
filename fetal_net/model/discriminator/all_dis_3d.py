@@ -39,7 +39,7 @@ def discriminator_image_3d(input_shape=(None, 2, 64, 128, 128),
 
     gap = GlobalAveragePooling3D()(conv)
     for _ in range(fc_layers):
-        gap = Dense(128, activation=LeakyReLU)(gap)
+        gap = Dense(128, activation=LeakyReLU())(gap)
 
     outputs = Dense(1, activation='sigmoid')(gap)
 
