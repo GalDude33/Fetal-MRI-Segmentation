@@ -26,13 +26,21 @@ def discriminator_image_3d(input_shape=(None, 2, 64, 128, 128),
 
     inputs = Input(input_shape)
 
+    fc_layers = 0
+
     conv = inputs
     for level in range(scale_only_xy):
         conv = conv_block(conv, level, n_base_filters, kernel_size, padding, (stride_size, stride_size, 1), dropout_rate=dropout_rate)
     for level in range(scale_only_xy, depth):
         conv = conv_block(conv, level, n_base_filters, kernel_size, padding, strides=1, dropout_rate=dropout_rate)
+        if conv.shape[-2] < kernel_size:
+            fc_layers = depth - level - 1
+            break
 
     gap = GlobalAveragePooling3D()(conv)
+    for _ in range(fc_layers):
+        gap = Dense(128, activation=LeakyReLU)(gap)
+
     outputs = Dense(1, activation='sigmoid')(gap)
 
     d = Model(inputs, outputs, name='Discriminator')
