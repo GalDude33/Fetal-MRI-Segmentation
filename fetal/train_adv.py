@@ -268,9 +268,9 @@ def main(overwrite=False):
             if gen_metrics[0] < best_loss:
                 best_loss = gen_metrics[0]
                 print('Saving Model...')
-                with open(os.path.join(config["base_dir"], "g_{}_{:.3f}.json".format(n_round, gen_metrics[0])), 'w') as f:
+                with open(os.path.join(config["base_dir"], "g_{}_{:.3f}.json".format(epoch, gen_metrics[0])), 'w') as f:
                     f.write(gen_model.to_json())
-                gen_model.save_weights(os.path.join(config["base_dir"], "g_{}_{:.3f}.h5".format(n_round, gen_metrics[0])))
+                gen_model.save_weights(os.path.join(config["base_dir"], "g_{}_{:.3f}.h5".format(epoch, gen_metrics[0])))
 
             postfix['val_d'] = build_dsc(dis_model.metrics_names, dis_metrics)
             postfix['val_g'] = build_dsc(gen_model.metrics_names, gen_metrics)
@@ -280,7 +280,7 @@ def main(overwrite=False):
             #pbar.refresh()
 
             # update step sizes, learning rates
-            scheduler.update_steps(n_round, gen_metrics[0])
+            scheduler.update_steps(epoch, gen_metrics[0])
             K.set_value(dis_model.optimizer.lr, scheduler.get_lr())
             K.set_value(combined_model.optimizer.lr, scheduler.get_lr())
 
