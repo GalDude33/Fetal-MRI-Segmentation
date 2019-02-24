@@ -81,6 +81,7 @@ def load_old_model(model_file, verbose=True, config=None) -> Model:
                                       # TODO: change to output shape
                                       'old_model_path': config['old_model']})
                 model.load_weights(model_file)
+                return model
             else:
                 raise
 
