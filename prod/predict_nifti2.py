@@ -118,8 +118,6 @@ def save_nifti(data, path):
 def secondary_prediction(mask, vol, config2, model2_path=None,
                          preprocess_method2=None, norm_params2=None,
                          overlap_factor=0.9, augment2=None, num_augment=10, std=False):
-    prediction_std = None
-
     model2 = load_old_model(get_last_model_path(model2_path), config=config2)
     pred = mask
     bbox_start, bbox_end = find_bounding_box(pred)
@@ -136,33 +134,16 @@ def secondary_prediction(mask, vol, config2, model2_path=None,
 
     data = preproc_and_norm(data, preprocess_method2, norm_params2)
 
-    if augment2 is not None:
-        if augment2 == 'all':
-            predictions = predict_augment(data, model=model2, overlap_factor=overlap_factor, config=config2, num_augments=num_augment)
-        elif augment2 == 'flip':
-            predictions = predict_flips(data, model=model2, overlap_factor=overlap_factor, config=config2)
-        else:
-            raise ("Unknown augmentation {}".format(augment2))
-        prediction = np.mean(predictions, axis=0)
-        if std:
-            prediction_std = np.mean(predictions, axis=0)
-    else:
-        prediction = \
-            patch_wise_prediction(model=model2,
-                                  data=np.expand_dims(data, 0),
-                                  overlap_factor=overlap_factor,
-                                  patch_shape=config2["patch_shape"] + [config2["patch_depth"]])
-
-    prediction = prediction.squeeze()
-    if std:
-        prediction_std = prediction_std.squeeze()
+    prediction, prediction_std = get_prediction(data, model2, augment=augment2, num_augments=num_augment, std=std,
+                                                overlap_factor=overlap_factor, config=config2)
 
     padding2 = list(zip(bbox_start, np.array(vol.shape) - bbox_end))
     print(padding2)
     print(prediction.shape)
     prediction = np.pad(prediction, padding2, mode='constant', constant_values=0)
-    if std:
+    if prediction_std is not None:
         prediction_std = np.pad(prediction_std, padding2, mode='constant', constant_values=0)
+
     return prediction, prediction_std
 
 
@@ -184,6 +165,29 @@ def preproc_and_norm(data, preprocess_method=None, norm_params=None, scale=None,
     if norm_params is not None and any(norm_params.values()):
         data = normalize_data(data, mean=norm_params['mean'], std=norm_params['std'])
     return data
+
+
+def get_prediction(data, model, augment, num_augments, std, overlap_factor, config):
+    prediction_std = None
+    if augment is not None:
+        if augment == 'all':
+            predictions = predict_augment(data, model=model, overlap_factor=overlap_factor, config=config, num_augments=num_augments)
+        elif augment == 'flip':
+            predictions = predict_flips(data, model=model, overlap_factor=overlap_factor, config=config)
+        else:
+            raise ("Unknown augmentation {}".format(augment))
+        prediction = np.mean(predictions, axis=0)
+        if std:
+            prediction_std = np.std(predictions, axis=0).squeeze()
+    else:
+        prediction = \
+            patch_wise_prediction(model=model,
+                                  data=np.expand_dims(data, 0),
+                                  overlap_factor=overlap_factor,
+                                  patch_shape=config["patch_shape"] + [config["patch_depth"]])
+    prediction = prediction.squeeze()
+
+    return prediction, prediction_std
 
 
 def main(input_path, output_path, overlap_factor,
@@ -215,22 +219,8 @@ def main(input_path, output_path, overlap_factor,
     data = np.pad(data, 3, 'constant', constant_values=data.min())
 
     print('Shape: ' + str(data.shape))
-    if augment is not None:
-        if augment == 'all':
-            predictions = predict_augment(data, model=model, overlap_factor=overlap_factor, config=config)
-        elif augment == 'flip':
-            predictions = predict_flips(data, model=model, overlap_factor=overlap_factor, config=config)
-        else:
-            raise ("Unknown augmentation {}".format(augment))
-        prediction = np.mean(predictions, axis=0)
-        if std:
-            prediction_std = np.mean(predictions, axis=0)
-    else:
-        prediction = \
-            patch_wise_prediction(model=model,
-                                  data=np.expand_dims(data, 0),
-                                  overlap_factor=overlap_factor,
-                                  patch_shape=config["patch_shape"] + [config["patch_depth"]])
+    prediction, prediction_std = get_prediction(data, model, augment=augment, num_augments=num_augment, std=std,
+                                                overlap_factor=overlap_factor, config=config)
 
     # unpad
     prediction = prediction[3:-3, 3:-3, 3:-3]
