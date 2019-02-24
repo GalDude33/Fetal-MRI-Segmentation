@@ -176,7 +176,7 @@ def get_prediction(data, model, augment, num_augments, std, overlap_factor, conf
             predictions = predict_flips(data, model=model, overlap_factor=overlap_factor, config=config)
         else:
             raise ("Unknown augmentation {}".format(augment))
-        prediction = np.mean(predictions, axis=0)
+        prediction = np.std(predictions, axis=0)
         if std:
             prediction_std = np.std(predictions, axis=0).squeeze()
     else:
@@ -221,19 +221,18 @@ def main(input_path, output_path, overlap_factor,
     print('Shape: ' + str(data.shape))
     prediction, prediction_std = get_prediction(data, model, augment=augment, num_augments=num_augment, std=std,
                                                 overlap_factor=overlap_factor, config=config)
-
     # unpad
     prediction = prediction[3:-3, 3:-3, 3:-3]
     if std:
         prediction = prediction_std[3:-3, 3:-3, 3:-3]
 
     # revert to original size
-    if config.get('scale_data', None) is not None:
-        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
-            ..., np.newaxis]
-        if std:
-            prediction_std = ndimage.zoom(prediction_std.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
-                ..., np.newaxis]
+#    if config.get('scale_data', None) is not None:
+#        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
+#            ..., np.newaxis]
+#        if std:
+#            prediction_std = ndimage.zoom(prediction_std.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
+#                ..., np.newaxis]
 
     save_nifti(prediction, os.path.join(output_path, scan_name + '_pred.nii.gz'))
     save_nifti(prediction_std, os.path.join(output_path, scan_name + '_std.nii.gz'))
