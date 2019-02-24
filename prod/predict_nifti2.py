@@ -16,7 +16,7 @@ from fetal_net.normalize import normalize_data
 from fetal_net.postprocess import postprocess_prediction as process_pred
 from fetal_net.prediction import patch_wise_prediction
 from fetal_net.training import load_old_model
-from brats.preprocess import window_intensities_data
+from fetal.preprocess import window_intensities_data
 
 from fetal_net.utils.cut_relevant_areas import find_bounding_box, check_bounding_box
 from fetal_net.utils.utils import read_img, get_image
