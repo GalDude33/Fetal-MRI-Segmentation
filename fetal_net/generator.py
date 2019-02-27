@@ -390,9 +390,9 @@ def convert_data(x_list, y_list, mask_list, n_labels=1, labels=None, categorical
     if categorical:
         y = to_categorical(y, 2)
     if is3d:
-        x = np.expand_dims(x, 1)
-        y = np.expand_dims(y, 1)
-        masks = np.expand_dims(mask_list, 1)
+        x = np.expand_dims(x, axis=-1)
+        y = np.expand_dims(y, axis=-1)
+        masks = np.expand_dims(mask_list, axis=-1)
 
     inputs = x
     if len(masks) > 0:
