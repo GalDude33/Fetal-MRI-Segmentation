@@ -6,7 +6,8 @@ from keras.optimizers import Adam
 
 from ...metrics import dice_coefficient_loss, get_label_dice_coefficient_function, dice_coefficient, vod_coefficient
 
-K.set_image_data_format("channels_first")
+K.set_image_data_format("channels_last")
+#reload(K)
 
 try:
     from keras.engine import merge
@@ -58,7 +59,7 @@ def unet_model_3d(input_shape, pool_size=(2, 2, 2), n_labels=1, initial_learning
     for layer_depth in range(depth-2, -1, -1):
         up_convolution = get_up_convolution(pool_size=pool_size, deconvolution=deconvolution,
                                             n_filters=current_layer._keras_shape[1])(current_layer)
-        concat = concatenate([up_convolution, levels[layer_depth][1]], axis=1)
+        concat = concatenate([up_convolution, levels[layer_depth][1]], axis=-1)
         current_layer = create_convolution_block(n_filters=levels[layer_depth][1]._keras_shape[1],
                                                  input_layer=concat, batch_normalization=batch_normalization)
         current_layer = create_convolution_block(n_filters=levels[layer_depth][1]._keras_shape[1],

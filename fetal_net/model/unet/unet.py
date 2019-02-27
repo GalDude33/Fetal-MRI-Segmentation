@@ -47,7 +47,7 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
         metrics += [dice_coefficient]
 
     inputs = Input(input_shape)
-    inputs_p = Permute((3, 1, 2))(inputs)
+    inputs_p = inputs #Permute((3, 1, 2))(inputs)
 
     current_layer = inputs_p
     levels = list()
@@ -70,7 +70,7 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
     for layer_depth in range(depth - 2, -1, -1):
         up_convolution = get_up_convolution(pool_size=pool_size, deconvolution=deconvolution,
                                             n_filters=current_layer._keras_shape[1])(current_layer)
-        concat = concatenate([up_convolution, levels[layer_depth]], axis=1)
+        concat = concatenate([up_convolution, levels[layer_depth]], axis=-1)
         current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[1],
                                                  input_layer=concat, batch_normalization=batch_normalization)
         if dropout_rate > 0:
@@ -81,7 +81,7 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
 
     final_convolution = Conv2D(n_labels, (1, 1))(current_layer)
     act = Activation(activation_name)(final_convolution)
-    act = Permute((2, 3, 1))(act)
+    #act = Permute((2, 3, 1))(act)
     model = Model(inputs=inputs, outputs=act)
 
     model.compile(optimizer=Adam(lr=initial_learning_rate), loss=loss_function, metrics=metrics)
