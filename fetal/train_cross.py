@@ -184,7 +184,7 @@ def main(overwrite=False):
     combined_model = Model(inputs=[inputs_A],
                            outputs=[B_seg, B_valid])
     combined_model.compile(loss=[seg_loss_func, 'binary_crossentropy'],
-                           loss_weights=[1, config["gd_loss_ratio"]],
+                           loss_weights=[config["gd_loss_ratio"], 1],
                            optimizer=Adam(config["initial_learning_rate"]))
     combined_model.summary()
 
