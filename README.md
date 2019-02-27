@@ -1,3 +1,10 @@
+### Fetal Total-Body and Brain 3D Segmentation in MRI scans with limited datasets.
+
+- 3D and 2D segmentation.
+- Implemented Advanced Augmentation techniques.
+- Achieving results below Radiologist Inter & Intra Observer variability.
+- Option to Utilize previous-slice segmentation to improve performance on hard samples.
+
 ### Training 
 
 * Install Tensorflow & Keras
