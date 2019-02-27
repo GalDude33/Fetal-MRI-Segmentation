@@ -8,7 +8,7 @@ import fetal_net.preprocess
 from fetal_net.data import write_data_to_file
 
 
-def create_data_file(config):
+def create_data_file(config, name=''):
     training_files, subject_ids = fetch_training_data_files(config, return_subject_ids=True)
     if config.get('preproc', None) is not None:
         preproc_func = getattr(fetal_net.preprocess, config['preproc'])
@@ -17,7 +17,7 @@ def create_data_file(config):
     _, (mean, std) = write_data_to_file(training_files, config["data_file"], subject_ids=subject_ids,
                                         normalize=config['normalization'], scale=config.get('scale_data', None),
                                         preproc=preproc_func)
-    with open(os.path.join(config["base_dir"], 'norm_params.json'), mode='w') as f:
+    with open(os.path.join(config["base_dir"], name+'norm_params.json'), mode='w') as f:
         json.dump({'mean': mean, 'std': std}, f)
 
 
