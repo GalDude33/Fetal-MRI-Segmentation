@@ -301,10 +301,11 @@ def main(overwrite=False):
                                                       verbose=0)
 
                 # G
-                # gen_x_test, gen_y_test = input2gan(val_patches, val_segs, dis_model.output_shape)
-                gen_metrics += genAB_model.evaluate(val_patches, val_segs,
-                                                    batch_size=config["validation_batch_size"],
-                                                    verbose=0)
+                gen_x_test, gen_y_test = input2gan(A_val_patches, A_val_segs, dis_model.output_shape)
+                gen_metrics += \
+                    combined_model.evaluate(gen_x_test, gen_y_test,
+                                            batch_size=config["validation_batch_size"],
+                                            verbose=0)
 
             dis_metrics /= float(evaluation_rounds)
             gen_metrics /= float(evaluation_rounds)
