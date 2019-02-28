@@ -203,10 +203,7 @@ def main(overwrite=False):
                            optimizer=Adam(config["initial_learning_rate"]))
     combined_model.summary()
 
-    # get training and testing generators
-    A_train_generator, A_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
-        A_data_file_opened,
-        batch_size=config["batch_size"],
+    data_params = dict(batch_size=config["batch_size"],
         data_split=config["validation_split"],
         overwrite=overwrite,
         validation_keys_file=config["validation_file"],
@@ -229,33 +226,15 @@ def main(overwrite=False):
         categorical=config["categorical"], is3d=config["3D"],
         drop_easy_patches_train=config["drop_easy_patches_train"],
         drop_easy_patches_val=config["drop_easy_patches_val"])
+    # get training and testing generators
+    A_train_generator, A_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
+        A_data_file_opened,
+        **data_params)
 
     # get training and testing generators
     B_train_generator, B_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
         B_data_file_opened,
-        batch_size=config["batch_size"],
-        data_split=config["validation_split"],
-        overwrite=overwrite,
-        validation_keys_file=config["validation_file"],
-        training_keys_file=config["training_file"],
-        test_keys_file=config["test_file"],
-        n_labels=config["n_labels"],
-        labels=config["labels"],
-        patch_shape=(*config["patch_shape"], config["patch_depth"]),
-        validation_batch_size=config["validation_batch_size"],
-        val_augment=config["augment"],
-        skip_blank_train=config["skip_blank_train"],
-        skip_blank_val=config["skip_blank_val"],
-        truth_index=config["truth_index"],
-        truth_size=config["truth_size"],
-        prev_truth_index=config["prev_truth_index"],
-        prev_truth_size=config["prev_truth_size"],
-        truth_downsample=config["truth_downsample"],
-        truth_crop=config["truth_crop"],
-        patches_per_epoch=config["patches_per_epoch"],
-        categorical=config["categorical"], is3d=config["3D"],
-        drop_easy_patches_train=config["drop_easy_patches_train"],
-        drop_easy_patches_val=config["drop_easy_patches_val"])
+        **data_params)
 
     # start training
     scheduler = Scheduler(config["dis_steps"], config["gen_steps"],
