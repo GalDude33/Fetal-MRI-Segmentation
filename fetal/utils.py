@@ -2,6 +2,7 @@ import glob
 import json
 import os
 
+import numpy as np
 from collections import defaultdict
 
 import fetal_net.preprocess
@@ -71,3 +72,43 @@ def build_dsc(out_labels, outs):
         s = s + '{}={:.3f}, '.format(l, o)
     s = s.replace('mean_absolute_error', 'mae')
     return s[:-2] + '|'
+
+
+class Scheduler:
+    def __init__(self, n_itrs_per_epoch_d, n_itrs_per_epoch_g, init_lr, lr_decay, lr_patience):
+        self.init_dsteps = n_itrs_per_epoch_d
+        self.init_gsteps = n_itrs_per_epoch_g
+        self.init_lr = init_lr
+        self.lr_decay = lr_decay
+        self.lr_patience = lr_patience
+
+        self.dsteps = self.init_dsteps
+        self.gsteps = self.init_gsteps
+        self.lr = self.init_lr
+        self.steps_stuck = 0
+        self.best_loss = np.inf
+
+    def get_dsteps(self):
+        return self.dsteps
+
+    def get_gsteps(self):
+        return self.gsteps
+
+    def get_lr(self):
+        return self.lr
+
+    def update_steps(self, n_round, loss):
+        if loss < self.best_loss:
+            self.steps_stuck = 0
+            self.best_loss = loss
+        else:
+            self.steps_stuck += 1
+
+        if self.steps_stuck > self.lr_patience:
+            self.lr *= self.lr_decay
+            self.steps_stuck = 0
+            print('Reducing LR to {}'.format(self.lr))
+
+        # if key in self.schedules['step_decay']:
+        # self.dsteps = max(int(self.init_dsteps * self.schedules['step_decay'][key]), 1)
+        # self.gsteps = max(int(self.init_gsteps * self.schedules['step_decay'][key]), 1)
