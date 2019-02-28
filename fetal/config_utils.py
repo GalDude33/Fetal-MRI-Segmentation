@@ -169,9 +169,6 @@ def get_config():
         # Auto set - do not touch
         config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
         config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
-        config["training_file"] = os.path.join(config["split_dir"], "training_ids.pkl")
-        config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.pkl")
-        config["test_file"] = os.path.join(config["split_dir"], "test_ids.pkl")
         config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
         config["scale_data"] = (2, 2, 1)
 
@@ -192,4 +189,7 @@ def get_config():
         with open(os.path.join(config["base_dir"], 'config.json'), mode='w') as f:
             json.dump(config, f, indent=2)
 
+    config["training_file"] = os.path.join(config["split_dir"], "training_ids.pkl")
+    config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.pkl")
+    config["test_file"] = os.path.join(config["split_dir"], "test_ids.pkl")
     return config
