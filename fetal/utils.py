@@ -64,3 +64,10 @@ def set_gpu_mem_growth():
     #config.log_device_placement = True  # to log device placement (on which device the operation ran)
     sess = tf.Session(config=config)
     set_session(sess)  # set this TensorFlow session as the default session for Keras
+
+def build_dsc(out_labels, outs):
+    s = ''
+    for l, o in zip(out_labels, outs):
+        s = s + '{}={:.3f}, '.format(l, o)
+    s = s.replace('mean_absolute_error', 'mae')
+    return s[:-2] + '|'

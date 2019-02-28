@@ -13,7 +13,7 @@ import fetal_net
 import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
-from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth
+from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc
 from fetal_net.data import open_data_file, write_data_to_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
@@ -75,13 +75,6 @@ class Scheduler:
         # self.gsteps = max(int(self.init_gsteps * self.schedules['step_decay'][key]), 1)
 
 
-def build_dsc(out_labels, outs):
-    s = ''
-    for l, o in zip(out_labels, outs):
-        s = s + '{}={:.3f}, '.format(l, o)
-    return s[:-2] + '|'
-
-
 def input2discriminator(real_patches, fake_patches, d_out_shape):
     d_x_batch = np.concatenate((real_patches, fake_patches), axis=0)
 
@@ -131,7 +124,7 @@ def main(overwrite=False):
     genAB_model_func = getattr(fetal_net.model, config['gen_model_name'])
     genAB_model = genAB_model_func(input_shape=config["input_shape_gen"],
                                    initial_learning_rate=config["initial_learning_rate"],
-                                   activation='linear',
+                                   activation_name='linear',
                                    pool_size=(2, 2, 1),
                                    **{'dropout_rate': config['dropout_rate'],
                                       'loss_function': seg_loss_func
@@ -142,18 +135,22 @@ def main(overwrite=False):
     segB_model_func = getattr(fetal_net.model, config['seg_model_name'])
     segB_model = segB_model_func(input_shape=config["input_shape_seg"],
                                  initial_learning_rate=config["initial_learning_rate"],
-                                 activation='sigmoid',
+                                 activation_name='sigmoid',
                                  **{'dropout_rate': config['dropout_rate'],
                                     'loss_function': seg_loss_func
                                     })
 
-    dis_model_func = getattr(fetal_net.model, config['dis_model_name'])
-    dis_model = dis_model_func(
-        input_shape=config["input_shape_gen"],
-        initial_learning_rate=config["initial_learning_rate"],
-        scale_only_xy=3,
-        **{'dropout_rate': config['dropout_rate'],
-           'loss_function': dis_loss_func})
+    # dis_model_func = getattr(fetal_net.model, config['dis_model_name'])
+    # dis_model = dis_model_func(
+    #     input_shape=config["input_shape_gen"],
+    #     initial_learning_rate=config["initial_learning_rate"],
+    #     scale_only_xy=3,
+    #     **{'dropout_rate': config['dropout_rate'],
+    #        'loss_function': dis_loss_func})
+    from fetal_net.model.discriminator import PatchDiscriminator
+    dis_model = PatchDiscriminator.build_discriminator_3d(config["input_shape_gen"])
+    dis_model.compile(optimizer=Adam(lr=config["initial_learning_rate"]*0.01),
+                      loss=dis_loss_func, metrics=['mae'])
 
     if not overwrite \
             and len(glob.glob(config["model_file"] + '/segB_*.h5')) > 0 \
@@ -190,58 +187,35 @@ def main(overwrite=False):
     combined_model.summary()
 
     # get training and testing generators
+    data_params = dict(batch_size=config["batch_size"],
+                       data_split=config["validation_split"],
+                       overwrite=overwrite,
+                       validation_keys_file=config["validation_file"],
+                       training_keys_file=config["training_file"],
+                       test_keys_file=config["test_file"],
+                       n_labels=config["n_labels"],
+                       labels=config["labels"],
+                       patch_shape=(*config["patch_shape"], config["patch_depth"]),
+                       validation_batch_size=config["validation_batch_size"],
+                       augment=config["augment"],
+                       skip_blank_train=config["skip_blank_train"],
+                       skip_blank_val=config["skip_blank_val"],
+                       truth_index=config["truth_index"],
+                       truth_size=config["truth_size"],
+                       prev_truth_index=config["prev_truth_index"],
+                       prev_truth_size=config["prev_truth_size"],
+                       truth_downsample=config["truth_downsample"],
+                       truth_crop=config["truth_crop"],
+                       patches_per_epoch=config["patches_per_epoch"],
+                       categorical=config["categorical"], is3d=config["3D"],
+                       drop_easy_patches_train=config["drop_easy_patches_train"],
+                       drop_easy_patches_val=config["drop_easy_patches_val"])
     A_train_generator, A_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
         A_data_file_opened,
-        batch_size=config["batch_size"],
-        data_split=config["validation_split"],
-        overwrite=overwrite,
-        validation_keys_file=config["validation_file"],
-        training_keys_file=config["training_file"],
-        test_keys_file=config["test_file"],
-        n_labels=config["n_labels"],
-        labels=config["labels"],
-        patch_shape=(*config["patch_shape"], config["patch_depth"]),
-        validation_batch_size=config["validation_batch_size"],
-        augment=config["augment"],
-        skip_blank_train=config["skip_blank_train"],
-        skip_blank_val=config["skip_blank_val"],
-        truth_index=config["truth_index"],
-        truth_size=config["truth_size"],
-        prev_truth_index=config["prev_truth_index"],
-        prev_truth_size=config["prev_truth_size"],
-        truth_downsample=config["truth_downsample"],
-        truth_crop=config["truth_crop"],
-        patches_per_epoch=config["patches_per_epoch"],
-        categorical=config["categorical"], is3d=config["3D"],
-        drop_easy_patches_train=config["drop_easy_patches_train"],
-        drop_easy_patches_val=config["drop_easy_patches_val"])
-
-    # get training and testing generators
+        **data_params)
     B_train_generator, B_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
         B_data_file_opened,
-        batch_size=config["batch_size"],
-        data_split=config["validation_split"],
-        overwrite=overwrite,
-        validation_keys_file=config["validation_file"],
-        training_keys_file=config["training_file"],
-        test_keys_file=config["test_file"],
-        n_labels=config["n_labels"],
-        labels=config["labels"],
-        patch_shape=(*config["patch_shape"], config["patch_depth"]),
-        validation_batch_size=config["validation_batch_size"],
-        val_augment=config["augment"],
-        skip_blank_train=config["skip_blank_train"],
-        skip_blank_val=config["skip_blank_val"],
-        truth_index=config["truth_index"],
-        truth_size=config["truth_size"],
-        prev_truth_index=config["prev_truth_index"],
-        prev_truth_size=config["prev_truth_size"],
-        truth_downsample=config["truth_downsample"],
-        truth_crop=config["truth_crop"],
-        patches_per_epoch=config["patches_per_epoch"],
-        categorical=config["categorical"], is3d=config["3D"],
-        drop_easy_patches_train=config["drop_easy_patches_train"],
-        drop_easy_patches_val=config["drop_easy_patches_val"])
+        **data_params)
 
     # start training
     scheduler = Scheduler(config["dis_steps"], config["gen_steps"],
@@ -323,7 +297,7 @@ def main(overwrite=False):
                 segB_model.save_weights(os.path.join(config["base_dir"], "segB_{}_{:.3f}.h5".format(epoch, gen_metrics[0])))
 
             postfix['val_d'] = build_dsc(dis_model.metrics_names, dis_metrics)
-            postfix['val_g'] = build_dsc(genAB_model.metrics_names, gen_metrics)
+            postfix['val_g'] = build_dsc(combined_model.metrics_names, gen_metrics)
             # pbar.set_postfix(**postfix)
             print('val_d: ' + postfix['val_d'], end=' | ')
             print('val_g: ' + postfix['val_g'])
@@ -331,7 +305,7 @@ def main(overwrite=False):
 
             # update step sizes, learning rates
             scheduler.update_steps(epoch, gen_metrics[0])
-            K.set_value(dis_model.optimizer.lr, scheduler.get_lr())
+            K.set_value(dis_model.optimizer.lr, scheduler.get_lr()*0.01)
             K.set_value(combined_model.optimizer.lr, scheduler.get_lr())
 
     A_data_file_opened.close()

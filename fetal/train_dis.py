@@ -14,7 +14,7 @@ import fetal_net
 import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
-from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth
+from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc
 from fetal_net.data import open_data_file, write_data_to_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
@@ -72,13 +72,6 @@ class Scheduler:
         # if key in self.schedules['step_decay']:
         # self.dsteps = max(int(self.init_dsteps * self.schedules['step_decay'][key]), 1)
         # self.gsteps = max(int(self.init_gsteps * self.schedules['step_decay'][key]), 1)
-
-
-def build_dsc(out_labels, outs):
-    s = ''
-    for l, o in zip(out_labels, outs):
-        s = s + '{}={:.3f}, '.format(l, o)
-    return s[:-2] + '|'
 
 
 def input2discriminator(real_patches, fake_patches, d_out_shape):
@@ -206,13 +199,11 @@ def main(overwrite=False):
                            outputs=[seg_A, valid_A, valid_B])
     combined_model.compile(loss=[seg_loss_func, 'binary_crossentropy', 'binary_crossentropy'],
                            loss_weights=[1, config["gd_loss_ratio"], config["gd_loss_ratio"]],
+                           metrics={'dis_B': ['mae'], 'dis_A':['mae']},
                            optimizer=Adam(config["initial_learning_rate"]))
     combined_model.summary()
 
-    # get training and testing generators
-    A_train_generator, A_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
-        A_data_file_opened,
-        batch_size=config["batch_size"],
+    data_params = dict(batch_size=config["batch_size"],
         data_split=config["validation_split"],
         overwrite=overwrite,
         validation_keys_file=config["validation_file"],
@@ -235,33 +226,15 @@ def main(overwrite=False):
         categorical=config["categorical"], is3d=config["3D"],
         drop_easy_patches_train=config["drop_easy_patches_train"],
         drop_easy_patches_val=config["drop_easy_patches_val"])
+    # get training and testing generators
+    A_train_generator, A_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
+        A_data_file_opened,
+        **data_params)
 
     # get training and testing generators
     B_train_generator, B_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
         B_data_file_opened,
-        batch_size=config["batch_size"],
-        data_split=config["validation_split"],
-        overwrite=overwrite,
-        validation_keys_file=config["validation_file"],
-        training_keys_file=config["training_file"],
-        test_keys_file=config["test_file"],
-        n_labels=config["n_labels"],
-        labels=config["labels"],
-        patch_shape=(*config["patch_shape"], config["patch_depth"]),
-        validation_batch_size=config["validation_batch_size"],
-        val_augment=config["augment"],
-        skip_blank_train=config["skip_blank_train"],
-        skip_blank_val=config["skip_blank_val"],
-        truth_index=config["truth_index"],
-        truth_size=config["truth_size"],
-        prev_truth_index=config["prev_truth_index"],
-        prev_truth_size=config["prev_truth_size"],
-        truth_downsample=config["truth_downsample"],
-        truth_crop=config["truth_crop"],
-        patches_per_epoch=config["patches_per_epoch"],
-        categorical=config["categorical"], is3d=config["3D"],
-        drop_easy_patches_train=config["drop_easy_patches_train"],
-        drop_easy_patches_val=config["drop_easy_patches_val"])
+        **data_params)
 
     # start training
     scheduler = Scheduler(config["dis_steps"], config["gen_steps"],
