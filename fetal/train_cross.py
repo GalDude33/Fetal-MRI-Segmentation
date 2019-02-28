@@ -297,7 +297,7 @@ def main(overwrite=False):
                 segB_model.save_weights(os.path.join(config["base_dir"], "segB_{}_{:.3f}.h5".format(epoch, gen_metrics[0])))
 
             postfix['val_d'] = build_dsc(dis_model.metrics_names, dis_metrics)
-            postfix['val_g'] = build_dsc(genAB_model.metrics_names, gen_metrics)
+            postfix['val_g'] = build_dsc(combined_model.metrics_names, gen_metrics)
             # pbar.set_postfix(**postfix)
             print('val_d: ' + postfix['val_d'], end=' | ')
             print('val_g: ' + postfix['val_g'])
