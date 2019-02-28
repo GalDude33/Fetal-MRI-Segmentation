@@ -14,7 +14,7 @@ import fetal_net
 import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
-from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc
+from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc, Scheduler
 from fetal_net.data import open_data_file, write_data_to_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
@@ -31,47 +31,7 @@ if not "gen_steps" in config:
 if not "dis_steps" in config:
     config["dis_steps"] = 1
 if not "gd_loss_ratio" in config:
-    config["gd_loss_ratio"] = 10
-
-
-class Scheduler:
-    def __init__(self, n_itrs_per_epoch_d, n_itrs_per_epoch_g, init_lr, lr_decay, lr_patience):
-        self.init_dsteps = n_itrs_per_epoch_d
-        self.init_gsteps = n_itrs_per_epoch_g
-        self.init_lr = init_lr
-        self.lr_decay = lr_decay
-        self.lr_patience = lr_patience
-
-        self.dsteps = self.init_dsteps
-        self.gsteps = self.init_gsteps
-        self.lr = self.init_lr
-        self.steps_stuck = 0
-        self.best_loss = np.inf
-
-    def get_dsteps(self):
-        return self.dsteps
-
-    def get_gsteps(self):
-        return self.gsteps
-
-    def get_lr(self):
-        return self.lr
-
-    def update_steps(self, n_round, loss):
-        if loss < self.best_loss:
-            self.steps_stuck = 0
-            self.best_loss = loss
-        else:
-            self.steps_stuck += 1
-
-        if self.steps_stuck > self.lr_patience:
-            self.lr *= self.lr_decay
-            self.steps_stuck = 0
-            print('Reducing LR to {}'.format(self.lr))
-
-        # if key in self.schedules['step_decay']:
-        # self.dsteps = max(int(self.init_dsteps * self.schedules['step_decay'][key]), 1)
-        # self.gsteps = max(int(self.init_gsteps * self.schedules['step_decay'][key]), 1)
+    config["gd_loss_ratio"] = 1
 
 
 def input2discriminator(real_patches, fake_patches, d_out_shape):
