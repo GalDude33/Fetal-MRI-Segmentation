@@ -73,12 +73,12 @@ def ae_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_rate
     # add levels with up-convolution or up-sampling
     for layer_depth in range(depth - 2, -1, -1):
         up_convolution = get_up_convolution(pool_size=pool_size, deconvolution=deconvolution,
-                                            n_filters=dec_inputs._keras_shape[1])(current_layer)
-        current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[1],
+                                            n_filters=dec_inputs._keras_shape[-1])(current_layer)
+        current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[-1],
                                                  input_layer=up_convolution, batch_normalization=batch_normalization)
         if dropout_rate > 0:
             current_layer = SpatialDropout2D(rate=dropout_rate)(current_layer)
-        current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[1],
+        current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[-1]//2,
                                                  input_layer=current_layer,
                                                  batch_normalization=batch_normalization)
     final_convolution = Conv2D(n_labels, (1, 1))(current_layer)
