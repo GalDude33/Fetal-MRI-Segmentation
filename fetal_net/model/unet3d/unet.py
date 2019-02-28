@@ -15,9 +15,9 @@ except ImportError:
     from keras.layers.merge import concatenate
 
 
-def unet_model_3d(input_shape, pool_size=(2, 2, 2), n_labels=1, initial_learning_rate=0.00001, deconvolution=False,
-                  depth=4, n_base_filters=32, include_label_wise_dice_coefficients=False,
-                  batch_normalization=False, activation_name="sigmoid", loss_function=dice_coefficient_loss,
+def unet_model_3d(input_shape, pool_size=(2, 2, 2), n_labels=1, initial_learning_rate=0.00001, deconvolution=True,
+                  depth=5, n_base_filters=16, include_label_wise_dice_coefficients=False,
+                  batch_normalization=True, activation_name="sigmoid", loss_function=dice_coefficient_loss,
                   **kargs):
     """
     Builds the 3D UNet Keras model.f
@@ -44,9 +44,10 @@ def unet_model_3d(input_shape, pool_size=(2, 2, 2), n_labels=1, initial_learning
 
     # add levels with max pooling
     for layer_depth in range(depth):
-        layer1 = create_convolution_block(input_layer=current_layer, n_filters=n_base_filters*(2**layer_depth),
+        curr_n_filters = min(128, n_base_filters*(2**layer_depth))
+        layer1 = create_convolution_block(input_layer=current_layer, n_filters=curr_n_filters,
                                           batch_normalization=batch_normalization)
-        layer2 = create_convolution_block(input_layer=layer1, n_filters=n_base_filters*(2**layer_depth)*2,
+        layer2 = create_convolution_block(input_layer=layer1, n_filters=min(128, curr_n_filters*2),
                                           batch_normalization=batch_normalization)
         if layer_depth < depth - 1:
             current_layer = MaxPooling3D(pool_size=pool_size)(layer2)
@@ -133,7 +134,7 @@ def compute_level_output_shape(n_filters, depth, pool_size, image_shape):
 def get_up_convolution(n_filters, pool_size, kernel_size=(2, 2, 2), strides=(2, 2, 2),
                        deconvolution=False):
     if deconvolution:
-        return Deconvolution3D(filters=n_filters, kernel_size=kernel_size,
-                               strides=strides)
+        return Deconvolution3D(filters=n_filters, kernel_size=pool_size,
+                               strides=pool_size)
     else:
         return UpSampling3D(size=pool_size)
