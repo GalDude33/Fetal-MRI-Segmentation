@@ -137,6 +137,7 @@ def main(overwrite=False):
                                       'loss_function': seg_loss_func
                                       })
 
+
     # instantiate seg model
     segB_model_func = getattr(fetal_net.model, config['seg_model_name'])
     segB_model = segB_model_func(input_shape=config["input_shape_seg"],
@@ -313,11 +314,13 @@ def main(overwrite=False):
             if gen_metrics[0] < best_loss:
                 best_loss = gen_metrics[0]
                 print('Saving Model...')
-                with open(os.path.join(config["base_dir"], "g_{}_{:.3f}.json".format(epoch, gen_metrics[0])),
-                          'w') as f:
+                with open(os.path.join(config["base_dir"], "genAB_{}_{:.3f}.json".format(epoch, gen_metrics[0])), 'w') as f:
                     f.write(genAB_model.to_json())
-                genAB_model.save_weights(
-                    os.path.join(config["base_dir"], "g_{}_{:.3f}.h5".format(epoch, gen_metrics[0])))
+                genAB_model.save_weights(os.path.join(config["base_dir"], "genAB_{}_{:.3f}.h5".format(epoch, gen_metrics[0])))
+
+                with open(os.path.join(config["base_dir"], "segB_{}_{:.3f}.json".format(epoch, gen_metrics[0])), 'w') as f:
+                    f.write(segB_model.to_json())
+                segB_model.save_weights(os.path.join(config["base_dir"], "segB_{}_{:.3f}.h5".format(epoch, gen_metrics[0])))
 
             postfix['val_d'] = build_dsc(dis_model.metrics_names, dis_metrics)
             postfix['val_g'] = build_dsc(genAB_model.metrics_names, gen_metrics)
