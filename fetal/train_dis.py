@@ -14,7 +14,7 @@ import fetal_net
 import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
-from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth
+from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc
 from fetal_net.data import open_data_file, write_data_to_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
@@ -72,13 +72,6 @@ class Scheduler:
         # if key in self.schedules['step_decay']:
         # self.dsteps = max(int(self.init_dsteps * self.schedules['step_decay'][key]), 1)
         # self.gsteps = max(int(self.init_gsteps * self.schedules['step_decay'][key]), 1)
-
-
-def build_dsc(out_labels, outs):
-    s = ''
-    for l, o in zip(out_labels, outs):
-        s = s + '{}={:.3f}, '.format(l, o)
-    return s[:-2] + '|'
 
 
 def input2discriminator(real_patches, fake_patches, d_out_shape):
@@ -206,6 +199,7 @@ def main(overwrite=False):
                            outputs=[seg_A, valid_A, valid_B])
     combined_model.compile(loss=[seg_loss_func, 'binary_crossentropy', 'binary_crossentropy'],
                            loss_weights=[1, config["gd_loss_ratio"], config["gd_loss_ratio"]],
+                           metrics={'dis_B': ['mae'], 'dis_A':['mae']},
                            optimizer=Adam(config["initial_learning_rate"]))
     combined_model.summary()
 

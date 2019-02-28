@@ -13,7 +13,7 @@ import fetal_net
 import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
-from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth
+from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc
 from fetal_net.data import open_data_file, write_data_to_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
@@ -73,13 +73,6 @@ class Scheduler:
         # if key in self.schedules['step_decay']:
         # self.dsteps = max(int(self.init_dsteps * self.schedules['step_decay'][key]), 1)
         # self.gsteps = max(int(self.init_gsteps * self.schedules['step_decay'][key]), 1)
-
-
-def build_dsc(out_labels, outs):
-    s = ''
-    for l, o in zip(out_labels, outs):
-        s = s + '{}={:.3f}, '.format(l, o)
-    return s[:-2] + '|'
 
 
 def input2discriminator(real_patches, fake_patches, d_out_shape):
@@ -147,13 +140,17 @@ def main(overwrite=False):
                                     'loss_function': seg_loss_func
                                     })
 
-    dis_model_func = getattr(fetal_net.model, config['dis_model_name'])
-    dis_model = dis_model_func(
-        input_shape=config["input_shape_gen"],
-        initial_learning_rate=config["initial_learning_rate"],
-        scale_only_xy=3,
-        **{'dropout_rate': config['dropout_rate'],
-           'loss_function': dis_loss_func})
+    # dis_model_func = getattr(fetal_net.model, config['dis_model_name'])
+    # dis_model = dis_model_func(
+    #     input_shape=config["input_shape_gen"],
+    #     initial_learning_rate=config["initial_learning_rate"],
+    #     scale_only_xy=3,
+    #     **{'dropout_rate': config['dropout_rate'],
+    #        'loss_function': dis_loss_func})
+    from fetal_net.model.discriminator import PatchDiscriminator
+    dis_model = PatchDiscriminator.build_discriminator_3d(config["input_shape_gen"])
+    dis_model.compile(optimizer=Adam(lr=config["initial_learning_rate"]*0.01),
+                      loss=dis_loss_func, metrics=['mae'])
 
     if not overwrite \
             and len(glob.glob(config["model_file"] + '/segB_*.h5')) > 0 \
