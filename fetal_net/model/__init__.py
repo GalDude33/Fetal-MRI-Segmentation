@@ -16,3 +16,5 @@ from .norm.NormNet import norm_net_model
 
 from .discriminator.all_dis_2d import discriminator_image_2d
 from .discriminator.all_dis_3d import discriminator_image_3d
+from .discriminator.PatchDiscriminator import build_discriminator_2d as patch_discriminator_2d
+from .discriminator.PatchDiscriminator import build_discriminator_3d as patch_discriminator_3d
