@@ -124,7 +124,7 @@ def main(overwrite=False):
     genAB_model_func = getattr(fetal_net.model, config['gen_model_name'])
     genAB_model = genAB_model_func(input_shape=config["input_shape_gen"],
                                    initial_learning_rate=config["initial_learning_rate"],
-                                   activation='linear',
+                                   activation_name='linear',
                                    pool_size=(2, 2, 1),
                                    **{'dropout_rate': config['dropout_rate'],
                                       'loss_function': seg_loss_func
@@ -135,7 +135,7 @@ def main(overwrite=False):
     segB_model_func = getattr(fetal_net.model, config['seg_model_name'])
     segB_model = segB_model_func(input_shape=config["input_shape_seg"],
                                  initial_learning_rate=config["initial_learning_rate"],
-                                 activation='sigmoid',
+                                 activation_name='sigmoid',
                                  **{'dropout_rate': config['dropout_rate'],
                                     'loss_function': seg_loss_func
                                     })
