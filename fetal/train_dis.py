@@ -2,14 +2,13 @@ import glob
 import os
 from datetime import datetime
 from pathlib import Path
-import nibabel as nib
 
 import keras.backend as K
+import nibabel as nib
 import numpy as np
-from keras import Input, Model, Sequential
-from keras.engine import InputLayer
+from keras import Input, Model
 from keras.engine.network import Network
-from keras.layers import Activation, Concatenate, Conv2D, Flatten, Dense, LeakyReLU
+from keras.layers import Activation, Conv2D, Flatten, Dense, LeakyReLU
 from keras.optimizers import Adam
 from tqdm import tqdm
 
@@ -18,9 +17,8 @@ import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
 from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc, Scheduler
-from fetal_net.data import open_data_file, write_data_to_file
+from fetal_net.data import open_data_file
 from fetal_net.generator import get_training_and_validation_generators
-from fetal_net.model.fetal_net import fetal_envelope_model
 
 set_gpu_mem_growth()
 
@@ -37,8 +35,8 @@ if not "gd_loss_ratio" in config:
     config["gd_loss_ratio"] = 0.25
 if not "save_evals" in config:
     config["save_evals"] = 2
-base_save_dir = os.path.join(config["base_dir"], 'evals_'+datetime.now().ctime().replace('  ',' ').replace(' ','_').replace(':','_'))
-Path(base_save_dir).mkdir()
+base_save_dir = os.path.join(config["base_dir"], 'evals', datetime.now().ctime().replace('  ',' ').replace(' ','_').replace(':','_'))
+Path(base_save_dir).mkdir(parents=True)
 
 def input2discriminator(A_patches, B_patches, d_out_shape):
     d_x_batch = np.concatenate((A_patches, B_patches), axis=0)

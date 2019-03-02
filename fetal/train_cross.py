@@ -1,11 +1,14 @@
 import glob
 import os
+from datetime import datetime
+from pathlib import Path
 
 import keras.backend as K
+import nibabel as nib
 import numpy as np
 from keras import Input, Model
 from keras.engine.network import Network
-from keras.layers import Activation, Concatenate, Reshape
+from keras.layers import Activation, Reshape
 from keras.optimizers import Adam
 from tqdm import tqdm
 
@@ -14,9 +17,8 @@ import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
 from fetal.utils import get_last_model_path, create_data_file, set_gpu_mem_growth, build_dsc, Scheduler
-from fetal_net.data import open_data_file, write_data_to_file
+from fetal_net.data import open_data_file
 from fetal_net.generator import get_training_and_validation_generators
-from fetal_net.model.fetal_net import fetal_envelope_model
 
 set_gpu_mem_growth()
 
@@ -31,6 +33,10 @@ if not "dis_steps" in config:
     config["dis_steps"] = 1
 if not "gd_loss_ratio" in config:
     config["gd_loss_ratio"] = 10
+if not "save_evals" in config:
+    config["save_evals"] = 2
+base_save_dir = os.path.join(config["base_dir"], 'evals', datetime.now().ctime().replace('  ',' ').replace(' ','_').replace(':','_'))
+Path(base_save_dir).mkdir(parents=True)
 
 K.set_image_data_format('channels_last')
 
@@ -115,15 +121,15 @@ def main(overwrite=False):
                       loss=dis_loss_func, metrics=['mae'])
 
     if not overwrite \
-            and len(glob.glob(config["model_file"] + '/segB_*.h5')) > 0 \
+            and len(glob.glob(config["model_file"] + '/segB_*.h5')) > 0:
+        segB_model_path = get_last_model_path(config["model_file"] + '/segB_')
+        print('Loading segB model from: {}'.format(segB_model_path))
+        segB_model.load_weights(segB_model_path)
+    if not overwrite \
             and len(glob.glob(config["model_file"] + '/genAB_*.h5')) > 0:
         genAB_model_path = get_last_model_path(config["model_file"] + '/genAB_')
         print('Loading genAB model from: {}'.format(genAB_model_path))
         genAB_model.load_weights(genAB_model_path)
-
-        segB_model_path = get_last_model_path(config["model_file"] + '/segB_')
-        print('Loading segB model from: {}'.format(segB_model_path))
-        segB_model.load_weights(segB_model_path)
 
     genAB_model.summary()
     segB_model.summary()
@@ -249,6 +255,17 @@ def main(overwrite=False):
                     combined_model.evaluate(gen_x_test, gen_y_test,
                                             batch_size=config["validation_batch_size"],
                                             verbose=0)
+
+                # only save for one round of evaluation
+                if n_round == 0 and config["save_evals"] > 0:
+                    # save seg examples
+                    B_val_pred = genAB_model.predict(A_val_patches[:config["save_evals"]])
+                    for i, (pred, patch) in enumerate(zip(B_val_pred, A_val_patches)):
+                        save_dir = os.path.join(base_save_dir, str(epoch))
+                        Path(save_dir).mkdir(parents=False, exist_ok=True)
+                        nib.save(nib.Nifti1Pair(patch, np.eye(4)), os.path.join(save_dir, str(i) + '_patchA.nii.gz'))
+                        nib.save(nib.Nifti1Pair(pred, np.eye(4)), os.path.join(save_dir, str(i) + '_patchB.nii.gz'))
+
 
             dis_metrics /= float(evaluation_rounds)
             gen_metrics /= float(evaluation_rounds)
