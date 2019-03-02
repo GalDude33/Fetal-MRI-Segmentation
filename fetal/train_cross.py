@@ -13,6 +13,7 @@ from keras.optimizers import Adam
 from tqdm import tqdm
 
 import fetal_net
+import fetal_net.model
 import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
@@ -35,7 +36,7 @@ if not "gd_loss_ratio" in config:
     config["gd_loss_ratio"] = 10
 if not "save_evals" in config:
     config["save_evals"] = 2
-base_save_dir = os.path.join(config["base_dir"], 'evals', datetime.now().ctime().replace('  ',' ').replace(' ','_').replace(':','_'))
+base_save_dir = os.path.join(config["base_dir"], 'evals', datetime.now().ctime().replace('  ', ' ').replace(' ', '_').replace(':', '_'))
 Path(base_save_dir).mkdir(parents=True)
 
 K.set_image_data_format('channels_last')
@@ -77,7 +78,7 @@ def main(overwrite=False):
         # ugly patch
         configB = config.copy()
         configB['scans_dir'] = '../Datasets/Dixon_cut_windowed'
-        #configB['scale_data'] = [0.9, 0.9, 1]
+        # configB['scale_data'] = [0.9, 0.9, 1]
         configB['data_file'] = B_data_file_path
 
         create_data_file(configB, name='B')
@@ -86,7 +87,7 @@ def main(overwrite=False):
     B_data_file_opened = open_data_file(B_data_file_path)
 
     seg_loss_func = getattr(fetal_net.metrics, config['loss'])
-    dis_loss_func = 'mse' #getattr(fetal_net.metrics, config['dis_loss'])
+    dis_loss_func = 'mse'  # getattr(fetal_net.metrics, config['dis_loss'])
 
     # instantiate genAB model
     genAB_model_func = getattr(fetal_net.model, config['gen_model_name'])
@@ -97,7 +98,6 @@ def main(overwrite=False):
                                    **{'dropout_rate': config['dropout_rate'],
                                       'loss_function': seg_loss_func
                                       })
-
 
     # instantiate seg model
     segB_model_func = getattr(fetal_net.model, config['seg_model_name'])
@@ -149,7 +149,7 @@ def main(overwrite=False):
     B_valid = Activation(None, name='dis')(frozen_dis_model(B_fake))
     combined_model = Model(inputs=[inputs_A],
                            outputs=[B_seg, B_valid])
-    combined_model.compile(loss=[seg_loss_func, 'mse'], #  'binary_crossentropy'],
+    combined_model.compile(loss=[seg_loss_func, 'mse'],  # 'binary_crossentropy'],
                            loss_weights=[config["gd_loss_ratio"], 1],
                            metrics={'dis': ['mae']},
                            optimizer=Adam(config["initial_learning_rate"]))
@@ -259,13 +259,17 @@ def main(overwrite=False):
                 # only save for one round of evaluation
                 if n_round == 0 and config["save_evals"] > 0:
                     # save seg examples
-                    B_val_pred = genAB_model.predict(A_val_patches[:config["save_evals"]])
-                    for i, (pred, patch) in enumerate(zip(B_val_pred, A_val_patches)):
+                    B_val_fake = genAB_model.predict(A_val_patches[:config["save_evals"]])
+                    B_val_seg = segB_model.predict(B_val_patches[:config["save_evals"]].squeeze())
+                    for i, (A_real, B_fake, B_real, B_seg) in enumerate(zip(A_val_patches[:config["save_evals"]], B_val_fake,
+                                                                            B_val_patches[:config["save_evals"]].squeeze(), B_val_seg)):
                         save_dir = os.path.join(base_save_dir, str(epoch))
                         Path(save_dir).mkdir(parents=False, exist_ok=True)
-                        nib.save(nib.Nifti1Pair(patch, np.eye(4)), os.path.join(save_dir, str(i) + '_patchA.nii.gz'))
-                        nib.save(nib.Nifti1Pair(pred, np.eye(4)), os.path.join(save_dir, str(i) + '_patchB.nii.gz'))
+                        nib.save(nib.Nifti1Pair(A_real, np.eye(4)), os.path.join(save_dir, str(i) + '_patchA.nii.gz'))
+                        nib.save(nib.Nifti1Pair(B_fake, np.eye(4)), os.path.join(save_dir, str(i) + '_patchB_fake.nii.gz'))
 
+                        nib.save(nib.Nifti1Pair(B_real[... ,config["truth_index"]], np.eye(4)), os.path.join(save_dir, str(i) + '_patchB.nii.gz'))
+                        nib.save(nib.Nifti1Pair(B_seg, np.eye(4)), os.path.join(save_dir, str(i) + '_patchB_seg.nii.gz'))
 
             dis_metrics /= float(evaluation_rounds)
             gen_metrics /= float(evaluation_rounds)
