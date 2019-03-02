@@ -13,6 +13,7 @@ from keras.optimizers import Adam
 from tqdm import tqdm
 
 import fetal_net
+import fetal_net.model
 import fetal_net.metrics
 import fetal_net.preprocess
 from fetal.config_utils import get_config
