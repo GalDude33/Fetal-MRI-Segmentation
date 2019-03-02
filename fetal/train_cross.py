@@ -39,8 +39,7 @@ def input2discriminator(real_patches, fake_patches, d_out_shape):
     d_x_batch = np.concatenate((real_patches, fake_patches), axis=0)
 
     # real : 1, fake : 0
-    d_y_batch = np.clip(np.random.uniform(0.9, 1.0, size=[d_x_batch.shape[0]] + list(d_out_shape)[1:]),
-                        a_min=0, a_max=1)
+    d_y_batch = np.clip(np.random.uniform(0.85, 0.95, size=[d_x_batch.shape[0]] + list(d_out_shape)[1:]), a_min=0, a_max=1)
     d_y_batch[real_patches.shape[0]:, ...] = 1 - d_y_batch[real_patches.shape[0]:, ...]
 
     return d_x_batch, d_y_batch
@@ -51,7 +50,7 @@ def input2gan(real_patches, real_segs, d_out_shape):
     # set 1 to all labels (real : 1, fake : 0)
     g_y_batch = [
         real_segs,
-        np.clip(np.random.uniform(0.9, 1.0, size=[real_patches.shape[0]] + list(d_out_shape)[1:]), a_min=0, a_max=1)
+        -0.4 + np.clip(np.random.uniform(0.85, 0.95, size=[real_patches.shape[0]] + list(d_out_shape)[1:]), a_min=0, a_max=1)
     ]
     return g_x_batch, g_y_batch
 
@@ -62,23 +61,26 @@ def main(overwrite=False):
 
     A_data_file_path = data_file_path.format('A')
     B_data_file_path = data_file_path.format('B')
-    if overwrite or (not os.path.exists(A_data_file_path)) or (not os.path.exists(B_data_file_path)):
+    if overwrite or (not os.path.exists(A_data_file_path)):
         configA = config.copy()
         # configA['scans_dir'] = ''
         configA['data_file'] = A_data_file_path
         create_data_file(configA, name='A')
 
+    if overwrite or (not os.path.exists(B_data_file_path)):
         # ugly patch
         configB = config.copy()
-        # configB['scans_dir'] = ''
+        configB['scans_dir'] = '../Datasets/Dixon_cut_windowed'
+        #configB['scale_data'] = [0.9, 0.9, 1]
         configB['data_file'] = B_data_file_path
+
         create_data_file(configB, name='B')
 
     A_data_file_opened = open_data_file(A_data_file_path)
     B_data_file_opened = open_data_file(B_data_file_path)
 
     seg_loss_func = getattr(fetal_net.metrics, config['loss'])
-    dis_loss_func = getattr(fetal_net.metrics, config['dis_loss'])
+    dis_loss_func = 'mse' #getattr(fetal_net.metrics, config['dis_loss'])
 
     # instantiate genAB model
     genAB_model_func = getattr(fetal_net.model, config['gen_model_name'])
@@ -109,7 +111,7 @@ def main(overwrite=False):
     #        'loss_function': dis_loss_func})
     from fetal_net.model.discriminator import PatchDiscriminator
     dis_model = PatchDiscriminator.build_discriminator_3d(config["input_shape_gen"])
-    dis_model.compile(optimizer=Adam(lr=config["initial_learning_rate"]*0.01),
+    dis_model.compile(optimizer=Adam(lr=config["initial_learning_rate"]),
                       loss=dis_loss_func, metrics=['mae'])
 
     if not overwrite \
@@ -141,7 +143,7 @@ def main(overwrite=False):
     B_valid = Activation(None, name='dis')(frozen_dis_model(B_fake))
     combined_model = Model(inputs=[inputs_A],
                            outputs=[B_seg, B_valid])
-    combined_model.compile(loss=[seg_loss_func, 'binary_crossentropy'],
+    combined_model.compile(loss=[seg_loss_func, 'mse'], #  'binary_crossentropy'],
                            loss_weights=[config["gd_loss_ratio"], 1],
                            metrics={'dis': ['mae']},
                            optimizer=Adam(config["initial_learning_rate"]))
@@ -174,6 +176,11 @@ def main(overwrite=False):
     A_train_generator, A_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
         A_data_file_opened,
         **data_params)
+
+    split_dirB = './split_dix'
+    data_params["training_keys_file"] = os.path.join(split_dirB, "training_ids.pkl")
+    data_params["validation_keys_file"] = os.path.join(split_dirB, "validation_ids.pkl")
+    data_params["test_keys_file"] = os.path.join(split_dirB, "test_ids.pkl")
     B_train_generator, B_validation_generator, n_train_steps, n_validation_steps = get_training_and_validation_generators(
         B_data_file_opened,
         **data_params)
@@ -218,7 +225,7 @@ def main(overwrite=False):
 
             # evaluate on validation set
             dis_metrics = np.zeros(dis_model.metrics_names.__len__(), dtype=float)
-            gen_metrics = np.zeros(genAB_model.metrics_names.__len__(), dtype=float)
+            gen_metrics = np.zeros(combined_model.metrics_names.__len__(), dtype=float)
             evaluation_rounds = n_validation_steps
             for n_round in range(evaluation_rounds):  # rounds_for_evaluation:
                 A_val_patches, A_val_segs = next(A_validation_generator)
@@ -266,7 +273,7 @@ def main(overwrite=False):
 
             # update step sizes, learning rates
             scheduler.update_steps(epoch, gen_metrics[0])
-            K.set_value(dis_model.optimizer.lr, scheduler.get_lr()*0.01)
+            K.set_value(dis_model.optimizer.lr, scheduler.get_lr())
             K.set_value(combined_model.optimizer.lr, scheduler.get_lr())
 
     A_data_file_opened.close()
