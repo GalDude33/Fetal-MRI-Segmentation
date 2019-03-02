@@ -1,5 +1,8 @@
 import glob
 import os
+from datetime import datetime
+from pathlib import Path
+import nibabel as nib
 
 import keras.backend as K
 import numpy as np
@@ -32,7 +35,10 @@ if not "dis_steps" in config:
     config["dis_steps"] = 1
 if not "gd_loss_ratio" in config:
     config["gd_loss_ratio"] = 0.25
-
+if not "save_evals" in config:
+    config["save_evals"] = 2
+base_save_dir = os.path.join(config["base_dir"], 'evals_'+datetime.now().ctime().replace('  ',' ').replace(' ','_').replace(':','_'))
+Path(base_save_dir).mkdir()
 
 def input2discriminator(A_patches, B_patches, d_out_shape):
     d_x_batch = np.concatenate((A_patches, B_patches), axis=0)
@@ -262,6 +268,16 @@ def main(overwrite=False):
                 gen_metrics += seg_model.evaluate(A_val_patches, A_val_segs,
                                                   batch_size=config["validation_batch_size"],
                                                   verbose=0)
+
+                # only save for one round of evaluation
+                if n_round == 0 and config["save_evals"] > 0:
+                    # save seg examples
+                    B_val_pred = seg_model.predict(B_val_patches[:config["save_evals"]])
+                    for i, (pred, patch) in enumerate(zip(B_val_pred, B_val_patches)):
+                        save_dir = os.path.join(base_save_dir, str(epoch))
+                        Path(save_dir).mkdir(parents=False, exist_ok=True)
+                        nib.save(nib.Nifti1Pair(patch[..., config["truth_index"]], np.eye(4)), os.path.join(save_dir, str(i) + '_patch.nii.gz'))
+                        nib.save(nib.Nifti1Pair(pred[..., 0], np.eye(4)), os.path.join(save_dir, str(i) + '_seg.nii.gz'))
 
             dis_metrics /= float(evaluation_rounds)
             gen_metrics /= float(evaluation_rounds)
