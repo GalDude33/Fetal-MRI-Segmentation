@@ -216,13 +216,23 @@ def random_flip_dimensions(n_dim, flip_factor):
     ]
 
 
+def transpose_it(data, truth_data, prev_truth_data, mask_data):
+    data = data.transpose([1, 0, 2])
+    truth_data = truth_data.transpose([1, 0, 2])
+    if prev_truth_data:
+        prev_truth_data = prev_truth_data.transpose([1, 0, 2])
+    if mask_data:
+        mask_data = mask_data.transpose([1, 0, 2])
+    return data, truth_data, prev_truth_data, mask_data
+
+
 def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=None, iso_scale_deviation=None,
                  rotate_deviation=None,
                  translate_deviation=None, flip=None, contrast_deviation=None,
                  poisson_noise=None, gaussian_noise=None, speckle_noise=None,
                  piecewise_affine=None, elastic_transform=None, intensity_multiplication_range=None,
-                 gaussian_filter=None, coarse_dropout=None, data_range=None, truth_range=None, prev_truth_range=None):
-    n_dim = len(truth.shape)
+                 gaussian_filter=None, coarse_dropout=None, data_range=None, truth_range=None, prev_truth_range=None, transpose_prob=0.5):
+    n_dim = len(data.shape)
     if scale_deviation:
         scale_factor = random_scale_factor(n_dim, std=scale_deviation)
     else:
@@ -289,6 +299,14 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
     if coarse_dropout is not None:
         coarse_dropout_rate = coarse_dropout['rate']
         coarse_dropout_size = coarse_dropout['size_percent']
+    if transpose_prob is not None and transpose_prob > 0:
+        transpose = np.random.random() > transpose_prob
+    else:
+        transpose = 0
+
+    # h, w = data.shape[0:1 + 1]
+    # pad = list(np.ceil(np.subtract(max(h, w), data.shape[0:1 + 1]) / 2).astype(int)) + [data.shape[2]]
+    # data = np.pad(data, [(_, _) for _ in pad], mode='constant')
 
     image, affine = data, np.eye(4)
     distorted_data, distorted_affine = distort_image(image, affine,
@@ -373,6 +391,9 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
     if coarse_dropout is not None:
         data = apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size,
                                     per_channel=coarse_dropout["per_channel"])
+
+    if transpose:
+        data, truth_data, prev_truth_data, mask_data = transpose_it(data, truth_data, prev_truth_data, mask_data)
 
     return data, truth_data, prev_truth_data, mask_data
 
