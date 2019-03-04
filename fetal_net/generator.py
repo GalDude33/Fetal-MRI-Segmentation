@@ -39,9 +39,6 @@ def pad_samples(data_file, patch_shape, truth_downsample):
     data_file.root.data = \
         [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=data_min)
          for data, data_min in zip(data_file.data, data_file.stats.min)]
-    data_file.root.truth = \
-        [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
-         for truth in data_file.truth]
 
     data_file.root.data = \
         [np.pad(data,
@@ -294,6 +291,7 @@ def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_siz
                          speckle_noise=augment.get("speckle_noise", None),
                          gaussian_filter=augment.get("gaussian_filter", None),
                          coarse_dropout=augment.get("coarse_dropout", None),
+                         transpose_prob=augment.get("transpose_prob", None),
                          data_range=data_range, truth_range=truth_range,
                          prev_truth_range=prev_truth_range)
     else:
