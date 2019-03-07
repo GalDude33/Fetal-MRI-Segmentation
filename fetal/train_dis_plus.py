@@ -260,7 +260,7 @@ def main(overwrite=False):
                                             encoder_model.predict(B_patches, batch_size=config["batch_size"]),
                                             emb_dis_model.output_shape,
                                             seg_model.predict(A_patches, batch_size=config["batch_size"]),
-                                            seg_model.predict(A_patches, batch_size=config["batch_size"]),
+                                            seg_model.predict(B_patches, batch_size=config["batch_size"]),
                                             seg_dis_model.output_shape)
                     outputs += combined_dis_model.train_on_batch(d_x_batch, d_y_batch)
                 if scheduler.get_dsteps():
