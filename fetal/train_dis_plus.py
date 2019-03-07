@@ -124,8 +124,7 @@ def main(overwrite=False):
         outputs = Dense(1, activation='sigmoid')(flat)
         dis_model = Model(inputs=[inputs], outputs=[outputs])
         dis_model.compile(Adam(lr=config["initial_learning_rate"]),
-                          loss=dis_loss_func,
-                          metrics=['mae'])
+                          loss=dis_loss_func)
         return dis_model
 
     emb_dis_model = dis()
@@ -160,10 +159,10 @@ def main(overwrite=False):
     seg_dis_model.summary()
 
     combined_dis_model = Model(inputs=[emb_dis_model.input, seg_dis_model.input],
-                               outputs=[Activation('linear', name='sE')(emb_dis_model.output), Activation('linear', name='sD')(seg_dis_model.output)])
+                               outputs=[Activation('linear', name='eD')(emb_dis_model.output), Activation('linear', name='sD')(seg_dis_model.output)])
     combined_dis_model.compile(loss=['mse', 'mse'],
                                loss_weights=[config["gdE_loss_ratio"], config["gdS_loss_ratio"]],
-                               metrics=['mae', 'mae'],
+                               metrics=['mae'],
                                optimizer=Adam(config["initial_learning_rate"]))
     combined_dis_model.summary()
 
