@@ -241,6 +241,10 @@ def main(overwrite=False):
                           lr_patience=config["patience"],
                           lr_decay=config["learning_rate_drop"])
 
+    def get_it(arr, inds):
+        return [arr[i] for i in inds]
+
+
     best_loss = np.inf
     for epoch in range(config["n_epochs"]):
         postfix = {}  # , 'val_g': None, 'val_d': None}
@@ -261,7 +265,8 @@ def main(overwrite=False):
                     outputs += combined_dis_model.train_on_batch(d_x_batch, d_y_batch)
                 if scheduler.get_dsteps():
                     outputs /= scheduler.get_dsteps()
-                    postfix['d'] = build_dsc(combined_dis_model.metrics_names, outputs)
+                    dsc_inds_d = [0,1,-1,-2,-3,-4]
+                    postfix['d'] = build_dsc(get_it(combined_dis_model.metrics_names, dsc_inds_d), get_it(outputs, dsc_inds_d))
                     pbar.set_postfix(**postfix)
 
                 # train G (freeze discriminator)
@@ -276,8 +281,6 @@ def main(overwrite=False):
 
                 dsc_inds = [0, 1, -1, -2, -3]
 
-                def get_it(arr, inds):
-                    return [arr[i] for i in inds]
 
                 postfix['g'] = build_dsc(get_it(combined_model.metrics_names, dsc_inds),
                                          get_it(outputs, dsc_inds))
