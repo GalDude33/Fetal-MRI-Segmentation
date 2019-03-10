@@ -71,6 +71,8 @@ def build_dsc(out_labels, outs):
     for l, o in zip(out_labels, outs):
         s = s + '{}={:.3f}, '.format(l, o)
     s = s.replace('mean_absolute_error', 'mae')
+    s = s.replace('binary_accuracy', 'acc')
+    s = s.replace('vod_coefficient', 'vod')
     s = s.replace('loss', 'l')
     return s[:-2] + '|'
 
