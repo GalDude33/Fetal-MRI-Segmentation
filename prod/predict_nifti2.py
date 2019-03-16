@@ -16,7 +16,7 @@ from fetal_net.normalize import normalize_data
 from fetal_net.postprocess import postprocess_prediction as process_pred
 from fetal_net.prediction import patch_wise_prediction
 from fetal_net.training import load_old_model
-from brats.preprocess import window_intensities_data
+from fetal.preprocess import window_intensities_data
 
 from fetal_net.utils.cut_relevant_areas import find_bounding_box, check_bounding_box
 from fetal_net.utils.utils import read_img, get_image
@@ -26,6 +26,7 @@ import nibabel as nib
 def predict_augment(data, model, overlap_factor, config, num_augments=10):
     data_max = data.max()
     data_min = data.min()
+    max_rotate_angle = 45
 
     order = 2
     predictions = []
@@ -35,11 +36,15 @@ def predict_augment(data, model, overlap_factor, config, num_augments=10):
         contrast_max_val = data_max + 0.2 * np.random.uniform(-1, 1) * val_range
         curr_data = contrast_augment(data, contrast_min_val, contrast_max_val)
 
-        rotate_factor = np.random.uniform(0, 360)
+        rotate_factor = np.random.uniform(-max_rotate_angle, max_rotate_angle)
 
-        to_flip = np.random.choice([True, False])
-        if to_flip:
-            curr_data = np.flip(curr_data, axis=2)
+        to_flip = np.arange(3)[np.random.choice([True, False], size=3)]
+        if len(to_flip) > 0:
+            curr_data = np.flip(curr_data, axis=to_flip)
+
+        to_transpose = np.random.choice([True, False])
+        if to_transpose:
+            curr_data = curr_data.transpose([1,0])
 
         curr_data = ndimage.rotate(curr_data, rotate_factor, order=order, reshape=False)
         curr_prediction = \
@@ -48,8 +53,12 @@ def predict_augment(data, model, overlap_factor, config, num_augments=10):
                                                  overlap_factor=overlap_factor,
                                                  patch_shape=config["patch_shape"] + [config["patch_depth"]]).squeeze(),
                            -rotate_factor, order=order, reshape=False)
-        if to_flip:
-            curr_prediction = np.flip(curr_prediction, axis=2)
+
+        if to_transpose:
+            curr_prediction = curr_prediction.transpose([1,0])
+
+        if len(to_flip) > 0:
+            curr_prediction = np.flip(curr_prediction, axis=to_flip)
 
         predictions += [curr_prediction]
 
@@ -62,20 +71,16 @@ def predict_flips(data, model, overlap_factor, config):
         s = list(iterable)
         return chain.from_iterable(combinations(s, r) for r in range(0, len(s) + 1))
 
-    def flip_it(data, axes):
-        if 0 in axes:
-            data = data[::-1, ...]
-        if 1 in axes:
-            data = data[:, ::-1, ...]
-        if 2 in axes:
-            data = data[:, :, ::-1, ...]
-        return data
+    def flip_it(data_, axes):
+        for ax in axes:
+            data_ = np.flip(data_, ax)
+        return data_
 
-    def predict_it(data, axes=[]):
-        data = flip_it(data, axes)
+    def predict_it(data_, axes=()):
+        data_ = flip_it(data_, axes)
         prediction = \
             patch_wise_prediction(model=model,
-                                  data=np.expand_dims(data, 0),
+                                  data=np.expand_dims(data_, 0),
                                   overlap_factor=overlap_factor,
                                   patch_shape=config["patch_shape"] + [config["patch_depth"]]).squeeze()
         return flip_it(prediction, axes)
@@ -83,30 +88,8 @@ def predict_flips(data, model, overlap_factor, config):
     predictions = []
     for axes in powerset([0, 1, 2]):
         print(axes)
-        predictions += [predict_it(data, axes)]
+        predictions += [predict_it(data, axes).squeeze()]
 
-    return predictions
-
-
-def predict_flips(data, model, overlap_factor, config):
-    data_max = data.max()
-    data_min = data.min()
-
-    order = 2
-    predictions = []
-    for _ in range(10):
-        val_range = data_max - data_min
-        contrast_min_val = data_min + 0.2 * np.random.uniform(-1, 1) * val_range
-        contrast_max_val = data_max + 0.2 * np.random.uniform(-1, 1) * val_range
-        curr_data = contrast_augment(data, contrast_min_val, contrast_max_val)
-
-        rotate_factor = np.random.uniform(0, 360)
-        predictions += \
-            [ndimage.rotate(patch_wise_prediction(model=model,
-                                                  data=ndimage.rotate(curr_data, rotate_factor, order=order, reshape=False)[np.newaxis, ...],
-                                                  overlap_factor=overlap_factor,
-                                                  patch_shape=config["patch_shape"] + [config["patch_depth"]]).squeeze(),
-                            -rotate_factor, order=order, reshape=False)]
     return predictions
 
 
@@ -291,9 +274,9 @@ if __name__ == '__main__':
     parser.add_argument("--preprocess", help="what preprocess to do",
                         type=str, required=False, default=None)
     parser.add_argument("--augment", help="what augment to do",
-                        type=str, required=False, default=None)  # one of 'flip, all'
-    parser.add_argument("--num_augment", help="what augment to do",
-                        type=int, required=False, default=0)  # one of 'flip, all'
+                        type=str, required=False, default=None, choices=['flip, all'])  # one of 'flip, all'
+    parser.add_argument("--num_augment", help="how much augment to do (more means more time, consider reducing overlap factor for speed)",
+                        type=int, required=False, default=32)  # one of 'flip, all'
 
     # Params for secondary prediction
     parser.add_argument("--config2_dir", help="specifies config dir path",
@@ -301,9 +284,9 @@ if __name__ == '__main__':
     parser.add_argument("--preprocess2", help="what preprocess to do",
                         type=str, required=False, default=None)
     parser.add_argument("--augment2", help="what augment to do",
-                        type=str, required=False, default=None)  # one of 'flip, all'
-    parser.add_argument("--num_augment2", help="what augment to do",
-                        type=int, required=False, default=0)  # one of 'flip, all'
+                        type=str, required=False, default=None, choices=['flip, all'])  # one of 'flip, all'
+    parser.add_argument("--num_augment2", help="how much augment to do (more means more time, consider reducing overlap factor for speed)",
+                        type=int, required=False, default=32)  # one of 'flip, all'
 
     opts = parser.parse_args()
 
