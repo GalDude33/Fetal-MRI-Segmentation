@@ -1,6 +1,8 @@
-[Development Branch](https://github.com/GalDude33/Fetal-MRI-Segmentation/tree/prev_truth)
+- [Development Branch](https://github.com/GalDude33/Fetal-MRI-Segmentation/tree/prev_truth)
 
-[Experiments Branch](https://github.com/GalDude33/Fetal-MRI-Segmentation/tree/adapt)
+- [Experiments Branch](https://github.com/GalDude33/Fetal-MRI-Segmentation/tree/adapt)
+
+- [Augmentations Notebook](https://github.com/GalDude33/Fetal-MRI-Segmentation/blob/adapt/notebooks/Check_Augmentations.ipynb)
 
 ### Fetal Total-Body and Brain 3D Segmentation in MRI scans with limited datasets.
 
