@@ -34,10 +34,8 @@ def get_config():
         config["patches_per_epoch"] = 800  # patches_per_epoch / batch_size = steps per epoch
 
         config["n_epochs"] = 50  # cutoff the training after this many epochs
-        config[
-            "patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
-        config[
-            "early_stop"] = 7  # training will be stopped after this many epochs without the validation loss improving
+        config["patience"] = 3  # learning rate will be reduced after this many epochs if the validation loss is not improving
+        config["early_stop"] = 7  # training will be stopped after this many epochs without the validation loss improving
         config["initial_learning_rate"] = 1e-4
         config["learning_rate_drop"] = 0.5  # factor by which the learning rate will be reduced
         config["validation_split"] = 0.90  # portion of the data that will be used for training %
@@ -173,7 +171,7 @@ def get_config():
         config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.pkl")
         config["test_file"] = os.path.join(config["split_dir"], "test_ids.pkl")
         config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
-        config["scale_data"] = (2, 2, 1)
+        config["scale_data"] = (0.33, 0.33, 1)
 
         config["preproc"] = {
             0: "laplace",
