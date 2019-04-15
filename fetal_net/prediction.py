@@ -7,7 +7,7 @@ import tables
 from keras import Model
 from tqdm import tqdm
 
-from brats.utils import get_last_model_path
+from fetal.utils import get_last_model_path
 from fetal_net.utils.threaded_generator import ThreadedGenerator
 from fetal_net.utils.utils import get_image, resize
 from .training import load_old_model

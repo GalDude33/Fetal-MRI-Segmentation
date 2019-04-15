@@ -63,7 +63,7 @@ class Scheduler:
         else:
             self.steps_stuck += 1
 
-        if self.steps_stuck > self.lr_patience:
+        if self.steps_stuck >= self.lr_patience:
             self.lr *= self.lr_decay
             self.steps_stuck = 0
             print('Reducing LR to {}'.format(self.lr))
@@ -105,7 +105,7 @@ def input2discriminator(real_patches, real_segs, fake_segs, d_out_shape, mul_mer
     d_x_batch = np.concatenate((real, fake), axis=0)
 
     # real : 1, fake : 0
-    d_y_batch = np.clip(np.random.normal(0.95, 0.025, size=[d_x_batch.shape[0]] + list(d_out_shape)[1:]), a_min=0, a_max=1)
+    d_y_batch = np.clip(np.random.uniform(0.9, 1.0, size=[d_x_batch.shape[0]] + list(d_out_shape)[1:]), a_min=0, a_max=1)
     d_y_batch[real.shape[0]:, ...] = 1 - d_y_batch[real.shape[0]:, ...]
 
     return d_x_batch, d_y_batch
@@ -114,7 +114,7 @@ def input2discriminator(real_patches, real_segs, fake_segs, d_out_shape, mul_mer
 def input2gan(real_patches, real_segs, d_out_shape):
     g_x_batch = real_patches
     # set 1 to all labels (real : 1, fake : 0)
-    g_y_batch = [np.clip(np.random.normal(0.5, 0.025, size=[real_patches.shape[0]] + list(d_out_shape)[1:]), a_min=0, a_max=1),
+    g_y_batch = [np.clip(np.random.uniform(0.9, 1.0, size=[real_patches.shape[0]] + list(d_out_shape)[1:]), a_min=0, a_max=1),
                  real_segs]
     return g_x_batch, g_y_batch
 
@@ -213,7 +213,7 @@ def main(overwrite=False):
     best_loss = np.inf
     for epoch in range(config["n_epochs"]):
         postfix={'g': None, 'd': None} #, 'val_g': None, 'val_d': None}
-        with tqdm(range(n_train_steps // config["gen_steps"]), dynamic_ncols=True,
+        with tqdm(range(n_train_steps // max(1, config["gen_steps"])), dynamic_ncols=True,
                   postfix={'gen': None, 'dis': None, 'val_gen': None, 'val_dis': None, None: None}) as pbar:
             for n_round in pbar:
                 # train D
@@ -225,7 +225,7 @@ def main(overwrite=False):
                                                                                  batch_size=config["batch_size"]),
                                                                dis_model.output_shape)
                     outputs += dis_model.train_on_batch(d_x_batch, d_y_batch)
-                if scheduler.get_dsteps():
+                if scheduler.get_dsteps() > 0:
                     outputs /= scheduler.get_dsteps()
                     postfix['d'] = build_dsc(dis_model.metrics_names, outputs)
                     pbar.set_postfix(**postfix)
@@ -236,19 +236,20 @@ def main(overwrite=False):
                     real_patches, real_segs = next(train_generator)
                     g_x_batch, g_y_batch = input2gan(real_patches, real_segs, dis_model.output_shape)
                     outputs += combined_model.train_on_batch(g_x_batch, g_y_batch)
-                outputs /= scheduler.get_gsteps()
-
-                postfix['g'] = build_dsc(combined_model.metrics_names, outputs)
-                pbar.set_postfix(**postfix)
+                if scheduler.get_gsteps() > 0:
+                    outputs /= scheduler.get_gsteps()
+                    postfix['g'] = build_dsc(combined_model.metrics_names, outputs)
+                    pbar.set_postfix(**postfix)
 
             # evaluate on validation set
             dis_metrics = np.zeros(dis_model.metrics_names.__len__(), dtype=float)
             gen_metrics = np.zeros(gen_model.metrics_names.__len__(), dtype=float)
             evaluation_rounds = n_validation_steps
             for n_round in range(evaluation_rounds):  # rounds_for_evaluation:
+                val_patches, val_segs = next(validation_generator)
+
                 # D
                 if scheduler.get_dsteps() > 0:
-                    val_patches, val_segs = next(validation_generator)
                     d_x_test, d_y_test = input2discriminator(val_patches, val_segs,
                                                              gen_model.predict(val_patches,
                                                                                batch_size=config["validation_batch_size"]),

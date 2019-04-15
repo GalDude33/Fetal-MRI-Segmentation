@@ -16,11 +16,18 @@ from fetal_net.normalize import normalize_data
 from fetal_net.postprocess import postprocess_prediction as process_pred
 from fetal_net.prediction import patch_wise_prediction
 from fetal_net.training import load_old_model
-from brats.preprocess import window_intensities_data
+from fetal.preprocess import window_intensities_data
 
 from fetal_net.utils.cut_relevant_areas import find_bounding_box, check_bounding_box
 from fetal_net.utils.utils import read_img, get_image
 import nibabel as nib
+
+from fetal_net.preprocess import *
+
+def flip_it(data_, axes):
+    for ax in axes:
+        data_ = np.flip(data_, ax)
+    return data_
 
 
 def predict_augment(data, model, overlap_factor, config, num_augments=10):
@@ -31,15 +38,14 @@ def predict_augment(data, model, overlap_factor, config, num_augments=10):
     predictions = []
     for _ in range(num_augments):
         val_range = data_max - data_min
-        contrast_min_val = data_min + 0.2 * np.random.uniform(-1, 1) * val_range
-        contrast_max_val = data_max + 0.2 * np.random.uniform(-1, 1) * val_range
+        contrast_min_val = data_min + 0.1 * np.random.uniform(-1, 1) * val_range
+        contrast_max_val = data_max + 0.1 * np.random.uniform(-1, 1) * val_range
         curr_data = contrast_augment(data, contrast_min_val, contrast_max_val)
 
-        rotate_factor = np.random.uniform(0, 360)
+        rotate_factor = np.random.uniform(-30, 30)
 
-        to_flip = np.random.choice([True, False])
-        if to_flip:
-            curr_data = np.flip(curr_data, axis=2)
+        flip_axes = np.arange(3)[np.random.choice([True, False], size=3)]
+        curr_data = flip_it(curr_data, flip_axes)
 
         curr_data = ndimage.rotate(curr_data, rotate_factor, order=order, reshape=False)
         curr_prediction = \
@@ -48,8 +54,7 @@ def predict_augment(data, model, overlap_factor, config, num_augments=10):
                                                  overlap_factor=overlap_factor,
                                                  patch_shape=config["patch_shape"] + [config["patch_depth"]]).squeeze(),
                            -rotate_factor, order=order, reshape=False)
-        if to_flip:
-            curr_prediction = np.flip(curr_prediction, axis=2)
+        curr_prediction = flip_it(curr_prediction, flip_axes)
 
         predictions += [curr_prediction]
 
@@ -62,51 +67,21 @@ def predict_flips(data, model, overlap_factor, config):
         s = list(iterable)
         return chain.from_iterable(combinations(s, r) for r in range(0, len(s) + 1))
 
-    def flip_it(data, axes):
-        if 0 in axes:
-            data = data[::-1, ...]
-        if 1 in axes:
-            data = data[:, ::-1, ...]
-        if 2 in axes:
-            data = data[:, :, ::-1, ...]
-        return data
-
-    def predict_it(data, axes=[]):
-        data = flip_it(data, axes)
-        prediction = \
+    def predict_it(data_, axes=()):
+        data_ = flip_it(data_, axes)
+        curr_pred = \
             patch_wise_prediction(model=model,
-                                  data=np.expand_dims(data, 0),
+                                  data=np.expand_dims(data_.squeeze(), 0),
                                   overlap_factor=overlap_factor,
                                   patch_shape=config["patch_shape"] + [config["patch_depth"]]).squeeze()
-        return flip_it(prediction, axes)
+        curr_pred =  flip_it(curr_pred, axes)
+        return curr_pred
 
     predictions = []
-    for axes in powerset([0, 1, 2]):
+    for axes in powerset([0,1,2]):
         print(axes)
-        predictions += [predict_it(data, axes)]
+        predictions += [predict_it(data, axes).squeeze()]
 
-    return predictions
-
-
-def predict_flips(data, model, overlap_factor, config):
-    data_max = data.max()
-    data_min = data.min()
-
-    order = 2
-    predictions = []
-    for _ in range(10):
-        val_range = data_max - data_min
-        contrast_min_val = data_min + 0.2 * np.random.uniform(-1, 1) * val_range
-        contrast_max_val = data_max + 0.2 * np.random.uniform(-1, 1) * val_range
-        curr_data = contrast_augment(data, contrast_min_val, contrast_max_val)
-
-        rotate_factor = np.random.uniform(0, 360)
-        predictions += \
-            [ndimage.rotate(patch_wise_prediction(model=model,
-                                                  data=ndimage.rotate(curr_data, rotate_factor, order=order, reshape=False)[np.newaxis, ...],
-                                                  overlap_factor=overlap_factor,
-                                                  patch_shape=config["patch_shape"] + [config["patch_depth"]]).squeeze(),
-                            -rotate_factor, order=order, reshape=False)]
     return predictions
 
 
@@ -177,6 +152,7 @@ def get_prediction(data, model, augment, num_augments, std, overlap_factor, conf
         else:
             raise ("Unknown augmentation {}".format(augment))
         prediction = np.mean(predictions, axis=0)
+        print('preds shape '+str(prediction.shape))
         if std:
             prediction_std = np.std(predictions, axis=0).squeeze()
     else:
@@ -186,7 +162,6 @@ def get_prediction(data, model, augment, num_augments, std, overlap_factor, conf
                                   overlap_factor=overlap_factor,
                                   patch_shape=config["patch_shape"] + [config["patch_depth"]])
     prediction = prediction.squeeze()
-
     return prediction, prediction_std
 
 
@@ -218,36 +193,37 @@ def main(input_path, output_path, overlap_factor,
 
     data = np.pad(data, 3, 'constant', constant_values=data.min())
 
-    print('Shape: ' + str(data.shape))
-    prediction, prediction_std = get_prediction(data, model, augment=augment, num_augments=num_augment, std=std,
-                                                overlap_factor=overlap_factor, config=config)
+    data = -laplace_norm(data)
+    save_nifti(data, os.path.join(output_path, scan_name + '_data_lap.nii.gz'))
 
+    print('Shape: ' + str(data.shape))
+    prediction, prediction_std = get_prediction(data=data, model=model, augment=augment, num_augments=num_augment, std=std,
+                                                overlap_factor=overlap_factor, config=config)
     # unpad
     prediction = prediction[3:-3, 3:-3, 3:-3]
-    if std:
-        prediction = prediction_std[3:-3, 3:-3, 3:-3]
+    if prediction_std is not None:
+        prediction_std = prediction_std[3:-3, 3:-3, 3:-3]
 
     # revert to original size
-    if config.get('scale_data', None) is not None:
-        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
-            ..., np.newaxis]
-        if std:
-            prediction_std = ndimage.zoom(prediction_std.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
-                ..., np.newaxis]
+#    if config.get('scale_data', None) is not None:
+#        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
+#            ..., np.newaxis]
+#        if std:
+#            prediction_std = ndimage.zoom(prediction_std.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
+#                ..., np.newaxis]
 
     save_nifti(prediction, os.path.join(output_path, scan_name + '_pred.nii.gz'))
-    save_nifti(prediction_std, os.path.join(output_path, scan_name + '_std.nii.gz'))
+    if prediction_std is not None:
+        save_nifti(prediction_std, os.path.join(output_path, scan_name + '_std.nii.gz'))
 
     if z_scale != 1.0 or xy_scale != 1.0:
         prediction = ndimage.zoom(prediction.squeeze(), [1.0 / xy_scale, 1.0 / xy_scale, 1.0 / z_scale], order=1)[..., np.newaxis]
 
-    print('Post-processing mask...')
-    if prediction.shape[-1] > 1:
-        prediction = prediction[..., 1]
-    prediction = prediction.squeeze()
-    mask = process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
-
+    #if prediction.shape[-1] > 1:
+    #    prediction = prediction[..., 1]
     if config2 is not None:
+        prediction = prediction.squeeze()
+        mask = process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
         nifti = read_img(input_path)
         prediction, prediction_std = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
                                                           config2=config2, model2_path=model2_path,
