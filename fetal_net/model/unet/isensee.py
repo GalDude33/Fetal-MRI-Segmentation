@@ -13,7 +13,7 @@ create_convolution_block = partial(create_convolution_block, activation=LeakyReL
 
 def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5, dropout_rate=0.3,
                       n_segmentation_levels=3, n_labels=1, optimizer=Adam, initial_learning_rate=5e-4,
-                      loss_function=dice_coefficient_loss, activation_name="sigmoid", **kargs):
+                      loss_function=dice_coefficient_loss, activation_name="sigmoid", summation=False, **kargs):
     """
     This function builds a model proposed by Isensee et al. for the BRATS 2017 competition:
     https://www.cbica.upenn.edu/sbia/Spyridon.Bakas/MICCAI_BraTS/MICCAI_BraTS_2017_proceedings_shortPapers.pdf
@@ -64,16 +64,19 @@ def isensee2017_model(input_shape=(4, 128, 128, 128), n_base_filters=16, depth=5
         if level_number < n_segmentation_levels:
             segmentation_layers.insert(0, Conv2D(n_labels, (1, 1))(current_layer))
 
-    output_layer = None
-    for level_number in reversed(range(n_segmentation_levels)):
-        segmentation_layer = segmentation_layers[level_number]
-        if output_layer is None:
-            output_layer = segmentation_layer
-        else:
-            output_layer = Add()([output_layer, segmentation_layer])
+    if summation:
+        output_layer = None
+        for level_number in reversed(range(n_segmentation_levels)):
+            segmentation_layer = segmentation_layers[level_number]
+            if output_layer is None:
+                output_layer = segmentation_layer
+            else:
+                output_layer = Add()([output_layer, segmentation_layer])
 
-        if level_number > 0:
-            output_layer = UpSampling2D(size=(2, 2))(output_layer)
+            if level_number > 0:
+                output_layer = UpSampling2D(size=(2, 2))(output_layer)
+    else:
+        output_layer = segmentation_layers[0]
 
     activation_block = Activation(activation_name)(output_layer)
     activation_block = Permute((2, 3, 1))(activation_block)

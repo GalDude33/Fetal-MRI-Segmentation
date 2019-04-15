@@ -4,6 +4,10 @@ from keras import backend as K
 import tensorflow as tf
 
 
+def double_dice_loss(y_true, y_pred, ratio=10.0):
+    return -dice_coefficient(y_true, y_pred) + ratio*dice_coefficient(1-y_true, y_pred)
+
+
 def dice_coefficient(y_true, y_pred, smooth=1.):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
@@ -11,9 +15,14 @@ def dice_coefficient(y_true, y_pred, smooth=1.):
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
 
-def vod_coefficient(y_true, y_pred, smooth=1.):
+def vod_coefficient(y_true, y_pred, binarize=True, smooth=1.):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
+
+    if binarize:
+        y_true_f = K.cast(y_true_f > 0.5, float)
+        y_pred_f = K.cast(y_pred_f > 0.5, float)
+
     intersection = K.sum(y_true_f * y_pred_f)
     union = K.sum(y_true_f) + K.sum(y_pred_f) - intersection
     return (intersection + smooth) / (union + smooth)
@@ -24,7 +33,7 @@ def dice_coefficient_loss(y_true, y_pred):
 
 
 def vod_coefficient_loss(y_true, y_pred):
-    return -vod_coefficient(y_true, y_pred)
+    return -vod_coefficient(y_true, y_pred, binarize=False)
 
 
 def weighted_dice_coefficient(y_true, y_pred, axis=(-3, -2, -1), smooth=0.00001):
@@ -64,7 +73,7 @@ def dice_and_xent(y_true, y_pred, xent_weight=1.0, weight_mask=None):
 def weighted_cross_entropy_loss(y_true, y_pred, weight_mask=None):
     xent = K.binary_crossentropy(y_true, y_pred)
     if weight_mask is not None:
-        xent = K.prod(weight_mask, xent)
+        xent = weight_mask * xent
     return K.mean(xent)
 
 
@@ -77,6 +86,13 @@ def _focal_loss(gamma=2., alpha=.5):
 
     return focal_loss_fixed
 
+
+def dice_and_xent_mask(weight_mask, xent_weight=1.0, dist_sigma = 3):
+    def _loss(y_true, y_pred):
+        return dice_and_xent(y_true, y_pred,
+                             xent_weight=xent_weight,
+                             weight_mask=K.exp(-weight_mask/dist_sigma))
+    return _loss
 
 dice_coef = dice_coefficient
 dice_coef_loss = dice_coefficient_loss

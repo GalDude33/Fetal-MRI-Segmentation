@@ -56,10 +56,10 @@ def window_intensities_data(data, min_percent=1, max_percent=99):
 
 
 def window_intensities(in_file, out_file, min_percent=1, max_percent=99):
-    image = sitk.ReadImage(in_file)
+    image = sitk.ReadImage(in_file, sitk.sitkFloat32)
     image_data = sitk.GetArrayFromImage(image)
-    out_image = sitk.IntensityWindowing(image, np.percentile(image_data, min_percent), np.percentile(image_data,
-                                                                                                     max_percent))
+    out_image = sitk.IntensityWindowing(image, np.percentile(image_data, min_percent),
+                                               np.percentile(image_data, max_percent))
     sitk.WriteImage(out_image, out_file)
     return os.path.abspath(out_file)
 

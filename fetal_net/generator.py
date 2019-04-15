@@ -1,9 +1,9 @@
 import os
 import random
 import numpy as np
-from keras.utils import to_categorical
+from keras.utils import to_categorical, Sequence
 
-from brats.utils import AttributeDict as att_dict
+from fetal.utils import AttributeDict as att_dict
 from fetal_net.utils.utils import resize
 from .augment import augment_data, random_permutation_x_y, get_image
 from .utils import pickle_dump, pickle_load
@@ -11,9 +11,15 @@ from .utils.patches import get_patch_from_3d_data
 
 
 class DataFileDummy:
-    def __init__(self, file):
-        self.data = [_ for _ in file.root.data]
-        self.truth = [_ for _ in file.root.truth]
+    def __init__(self, file, pad=0):
+        self.data = [np.pad(_, pad, 'constant', constant_values=_.min()) for _ in file.root.data]
+        self.truth = [np.pad(_, pad, 'constant', constant_values=0) for _ in file.root.truth]
+
+        if len(file.root.mask):
+            self.mask = [_ for _ in file.root.mask]
+        else:
+            self.mask = None
+
         self.stats = att_dict(
             p1=[np.percentile(_, q=1) for _ in self.data],
             min=[np.min(_) for _ in self.data],
@@ -21,9 +27,6 @@ class DataFileDummy:
         )
         self.subject_ids = [_ for _ in file.root.subject_ids]
 
-        # self.data_p1 = [np.percentile(_, q=1) for _ in self.data]
-        # self.data_min = [np.min(_) for _ in self.data]
-        # self.data_max = [np.max(_) for _ in self.data]
         self.root = self
 
 
@@ -60,7 +63,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                                            patches_per_epoch=1,
                                            categorical=True, is3d=False,
                                            prev_truth_index=None, prev_truth_size=None,
-                                           drop_easy_patches_train=False, drop_easy_patches_val=False):
+                                           drop_easy_patches_train=False, drop_easy_patches_val=False,
+                                           samples_pad=3, val_augment=None):
     """
     Creates the training and validation generators that can be used when training the model.
     :param prev_truth_inedx:
@@ -96,7 +100,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     if not validation_batch_size:
         validation_batch_size = batch_size
 
-    data_file = DataFileDummy(data_file)
+    data_file = DataFileDummy(data_file, samples_pad)
 
     pad_samples(data_file, patch_shape, truth_downsample or 1)
 
@@ -111,8 +115,16 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     print("Validation: {}".format([data_file.subject_ids[_].decode() for _ in validation_list]))
     print("Test: {}".format([data_file.subject_ids[_].decode() for _ in test_list]))
 
+    # Set the number of training and testing samples per epoch correctly
+    num_training_steps = patches_per_epoch // batch_size
+    print("Number of training steps: ", num_training_steps)
+
+    num_validation_steps = patches_per_epoch // validation_batch_size
+    print("Number of validation steps: ", num_validation_steps)
+
     training_generator = \
-        data_generator(data_file, training_list, batch_size=batch_size, augment=augment,
+        data_generator(data_file=data_file, index_list=training_list, batch_size=batch_size,
+                       augment=augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                        skip_blank=skip_blank_train,
                        truth_index=truth_index, truth_size=truth_size,
@@ -121,7 +133,8 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                        prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
                        drop_easy_patches=drop_easy_patches_train)
     validation_generator = \
-        data_generator(data_file, validation_list, batch_size=validation_batch_size,
+        data_generator(data_file=data_file, index_list=validation_list, batch_size=validation_batch_size,
+                       augment=val_augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                        skip_blank=skip_blank_val,
                        truth_index=truth_index, truth_size=truth_size,
@@ -129,13 +142,6 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                        categorical=categorical, is3d=is3d,
                        prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
                        drop_easy_patches=drop_easy_patches_val)
-
-    # Set the number of training and testing samples per epoch correctly
-    num_training_steps = patches_per_epoch // batch_size
-    print("Number of training steps: ", num_training_steps)
-
-    num_validation_steps = patches_per_epoch // batch_size
-    print("Number of validation steps: ", num_validation_steps)
 
     return training_generator, validation_generator, num_training_steps, num_validation_steps
 
@@ -196,6 +202,23 @@ def list_generator(index_list):
         yield from index_list
 
 
+class FetalSequence(Sequence):
+
+    def __init__(self, epoch_size, **kargs):
+        self.kargs = kargs
+        self.generator = data_generator(**kargs)
+        self.epoch_size = epoch_size
+
+    def __len__(self):
+        return self.epoch_size
+
+    def __getitem__(self, idx):
+        next(self.generator)
+
+    def reset(self):
+        self.generator = data_generator(**self.kargs)
+
+
 def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
                    shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_size=1, truth_downsample=None,
                    truth_crop=True, categorical=True, prev_truth_index=None, prev_truth_size=None,
@@ -204,18 +227,20 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
     while True:
         x_list = list()
         y_list = list()
+        mask_list = list()
 
         while len(x_list) < batch_size:
             index = next(index_generator)
-            add_data(x_list, y_list, data_file, index, augment=augment,
+            add_data(x_list, y_list, mask_list, data_file, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
                      truth_index=truth_index, truth_size=truth_size, truth_downsample=truth_downsample,
                      truth_crop=truth_crop, prev_truth_index=prev_truth_index,
                      prev_truth_size=prev_truth_size, drop_easy_patches=drop_easy_patches)
-        yield convert_data(x_list, y_list, n_labels=n_labels, labels=labels, categorical=categorical, is3d=is3d)
+        yield convert_data(x_list, y_list, mask_list, n_labels=n_labels, labels=labels, categorical=categorical,
+                           is3d=is3d)
 
 
-def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
+def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
              skip_blank=True,
              truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None,
              drop_easy_patches=False):
@@ -232,7 +257,7 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
     :param augment: if not None, data will be augmented according to the augmentation parameters
     :return:
     """
-    data, truth = get_data_from_file(data_file, index, patch_shape=None)
+    data, truth, mask = get_data_from_file(data_file, index, patch_shape=None)
 
     patch_corner = [
         np.random.randint(low=low, high=high)
@@ -250,25 +275,30 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
         else:
             prev_truth_range = None
 
-        data, truth, prev_truth = augment_data(data, truth,
-                                               data_min=data_file.stats.min[index], data_max=data_file.stats.max[index],
-                                               scale_deviation=augment.get('scale', None),
-                                               iso_scale_deviation=augment.get('iso_scale', None),
-                                               rotate_deviation=augment.get('rotate', None),
-                                               translate_deviation=augment.get('translate', None),
-                                               flip=augment.get('flip', None),
-                                               contrast_deviation=augment.get('contrast', None),
-                                               piecewise_affine=augment.get('piecewise_affine', None),
-                                               elastic_transform=augment.get('elastic_transform', None),
-                                               intensity_multiplication_range=augment.get('intensity_multiplication', None),
-                                               poisson_noise=augment.get("poisson_noise", None),
-                                               gaussian_filter=augment.get("gaussian_filter", None),
-                                               coarse_dropout=augment.get("coarse_dropout", None),
-                                               data_range=data_range, truth_range=truth_range,
-                                               prev_truth_range=prev_truth_range)
+        data, truth, prev_truth, mask = \
+            augment_data(data, truth,
+                         data_min=data_file.stats.min[index],
+                         data_max=data_file.stats.max[index],
+                         mask=mask,
+                         scale_deviation=augment.get('scale', None),
+                         iso_scale_deviation=augment.get('iso_scale', None),
+                         rotate_deviation=augment.get('rotate', None),
+                         translate_deviation=augment.get('translate', None),
+                         flip=augment.get('flip', None),
+                         contrast_deviation=augment.get('contrast', None),
+                         piecewise_affine=augment.get('piecewise_affine', None),
+                         elastic_transform=augment.get('elastic_transform', None),
+                         intensity_multiplication_range=augment.get('intensity_multiplication', None),
+                         poisson_noise=augment.get("poisson_noise", None),
+                         gaussian_noise=augment.get("gaussian_noise", None),
+                         speckle_noise=augment.get("speckle_noise", None),
+                         gaussian_filter=augment.get("gaussian_filter", None),
+                         coarse_dropout=augment.get("coarse_dropout", None),
+                         data_range=data_range, truth_range=truth_range,
+                         prev_truth_range=prev_truth_range)
     else:
-        data, truth, prev_truth = \
-            extract_patch(data, patch_corner, patch_shape, truth,
+        data, truth, prev_truth, mask = \
+            extract_patch(data, patch_corner, patch_shape, truth, mask,
                           truth_index=truth_index, truth_size=truth_size,
                           prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size)
 
@@ -294,14 +324,20 @@ def add_data(x_list, y_list, data_file, index, truth_index, truth_size=1, augmen
     if not skip_blank or np.any(truth != 0):
         x_list.append(data)
         y_list.append(truth)
+        if mask is not None:
+            mask_list.append(mask)
 
 
-def extract_patch(data, patch_corner, patch_shape, truth, truth_index, truth_size, prev_truth_index=None,
+def extract_patch(data, patch_corner, patch_shape, truth, mask, truth_index, truth_size, prev_truth_index=None,
                   prev_truth_size=1):
     data = get_patch_from_3d_data(data, patch_shape, patch_corner)
     real_truth = get_patch_from_3d_data(truth,
                                         patch_shape[:-1] + (truth_size,),
                                         patch_corner + np.array((0, 0, truth_index)))
+    if mask is not None:
+        mask = get_patch_from_3d_data(mask,
+                                      patch_shape[:-1] + (truth_size,),
+                                      patch_corner + np.array((0, 0, truth_index)))
     if prev_truth_index is not None:
         prev_truth = get_patch_from_3d_data(truth,
                                             patch_shape[:-1] + (prev_truth_size,),
@@ -309,43 +345,60 @@ def extract_patch(data, patch_corner, patch_shape, truth, truth_index, truth_siz
     else:
         prev_truth = None
 
-    return data, real_truth, prev_truth
+    return data, real_truth, prev_truth, mask
 
 
-def extract_random_patch(data, patch_shape, truth, truth_index, prev_truth_index):
+def extract_random_patch(data, patch_shape, truth, mask, truth_index, prev_truth_index):
     # cut relevant patch
     patch_corner = [
         np.random.randint(low=low, high=high)
         for low, high in zip((0, 0, 0),  # -np.array(patch_shape) // 2,
                              truth.shape - np.array(patch_shape))  # - np.array(patch_shape) // 2)
     ]
-    return extract_patch(data, patch_corner, patch_shape, truth, truth_index, prev_truth_index)
+    return extract_patch(data, patch_corner, patch_shape, truth, mask, truth_index, prev_truth_index)
 
 
 def get_data_from_file(data_file, index, patch_shape=None):
     if patch_shape:
         index, patch_index = index
-        data, truth = get_data_from_file(data_file, index, patch_shape=None)
+        data, truth, mask = get_data_from_file(data_file, index, patch_shape=None)
         x = get_patch_from_3d_data(data, patch_shape, patch_index)
         y = get_patch_from_3d_data(truth, patch_shape, patch_index)
+        if mask is not None:
+            z = get_patch_from_3d_data(mask, patch_shape, patch_index)
+        else:
+            z = None
     else:
+        if data_file.root.mask is not None:
+            z = data_file.root.mask[index]
+        else:
+            z = None
         x, y = data_file.root.data[index], data_file.root.truth[index]
-    return x, y
+    return x, y, z
 
 
-def convert_data(x_list, y_list, n_labels=1, labels=None, categorical=True, is3d=False):
+def convert_data(x_list, y_list, mask_list, n_labels=1, labels=None, categorical=True, is3d=False):
     x = np.asarray(x_list)
     y = np.asarray(y_list)
+    masks = np.asarray(mask_list)
     # if n_labels == 1:
     #     y[y > 0] = 1
     # elif n_labels > 1:
     #     y = get_multi_class_labels(y, n_labels=n_labels, labels=labels)
+
+    inputs = []
     if categorical:
         y = to_categorical(y, 2)
     if is3d:
         x = np.expand_dims(x, 1)
         y = np.expand_dims(y, 1)
-    return x, y
+        masks = np.expand_dims(mask_list, 1)
+
+    inputs = x
+    if len(masks) > 0:
+        inputs = [x, masks]
+
+    return inputs, y
 
 
 def get_multi_class_labels(data, n_labels, labels=None):

@@ -1,14 +1,18 @@
+import itertools
 import math
 import os
 from functools import partial
 
+import keras
 from keras import backend as K
-from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, ReduceLROnPlateau, EarlyStopping
-from keras.models import load_model
+from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, ReduceLROnPlateau, EarlyStopping, \
+    LambdaCallback
+from keras.models import load_model, Model
 
+import fetal_net.model
 from fetal_net.metrics import (dice_coefficient, dice_coefficient_loss, dice_coef, dice_coef_loss,
                                weighted_dice_coefficient_loss, weighted_dice_coefficient,
-                               vod_coefficient, vod_coefficient_loss, focal_loss, dice_and_xent)
+                               vod_coefficient, vod_coefficient_loss, focal_loss, dice_and_xent, double_dice_loss)
 
 K.set_image_dim_ordering('th')
 from multiprocessing import cpu_count
@@ -23,8 +27,9 @@ def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0
                   learning_rate_patience=50, logging_file="training.log", verbosity=1,
                   early_stopping_patience=None):
     callbacks = list()
-    callbacks.append(ModelCheckpoint(model_file + '-epoch{epoch:02d}-loss{val_loss:.3f}-acc{val_binary_accuracy:.3f}.h5',
-                                     save_best_only=True, verbose=verbosity, monitor='val_loss'))
+    callbacks.append(
+        ModelCheckpoint(model_file + '-epoch{epoch:02d}-loss{val_loss:.3f}-acc{val_binary_accuracy:.3f}.h5',
+                        save_best_only=True, verbose=verbosity, monitor='val_loss'))
     callbacks.append(CSVLogger(logging_file, append=True))
     if learning_rate_epochs:
         callbacks.append(LearningRateScheduler(partial(step_decay, initial_lrate=initial_learning_rate,
@@ -37,7 +42,7 @@ def get_callbacks(model_file, initial_learning_rate=0.0001, learning_rate_drop=0
     return callbacks
 
 
-def load_old_model(model_file, verbose=True):
+def load_old_model(model_file, verbose=True, config=None) -> Model:
     print("Loading pre-trained model")
     custom_objects = {'dice_coefficient_loss': dice_coefficient_loss, 'dice_coefficient': dice_coefficient,
                       'dice_coef': dice_coef, 'dice_coef_loss': dice_coef_loss,
@@ -47,7 +52,8 @@ def load_old_model(model_file, verbose=True):
                       'vod_coefficient_loss': vod_coefficient_loss,
                       'focal_loss': focal_loss,
                       'focal_loss_fixed': focal_loss,
-                      'dice_and_xent': dice_and_xent}
+                      'dice_and_xent': dice_and_xent,
+                      'double_dice_loss': double_dice_loss }
     try:
         from keras_contrib.layers import InstanceNormalization
         custom_objects["InstanceNormalization"] = InstanceNormalization
@@ -58,11 +64,25 @@ def load_old_model(model_file, verbose=True):
             print('Loading model from {}...'.format(model_file))
         return load_model(model_file, custom_objects=custom_objects)
     except ValueError as error:
+        print(error)
         if 'InstanceNormalization' in str(error):
             raise ValueError(str(error) + "\n\nPlease install keras-contrib to use InstanceNormalization:\n"
                                           "'pip install git+https://www.github.com/keras-team/keras-contrib.git'")
         else:
-            raise error
+            if config is not None:
+                print('Trying to build model manually...')
+                loss_func = getattr(fetal_net.metrics, config['loss'])
+                model_func = getattr(fetal_net.model, config['model_name'])
+                model = model_func(input_shape=config["input_shape"],
+                                   initial_learning_rate=config["initial_learning_rate"],
+                                   **{'dropout_rate': config['dropout_rate'],
+                                      'loss_function': loss_func,
+                                      'mask_shape': None if config["weight_mask"] is None else config["input_shape"],
+                                      # TODO: change to output shape
+                                      'old_model_path': config['old_model']})
+                model.load_weights(model_file)
+            else:
+                raise
 
 
 def train_model(model, model_file, training_generator, validation_generator, steps_per_epoch, validation_steps,
@@ -91,7 +111,7 @@ def train_model(model, model_file, training_generator, validation_generator, ste
                         epochs=n_epochs,
                         validation_data=validation_generator,
                         validation_steps=validation_steps,
-                        max_queue_size=20,
+                        max_queue_size=15,
                         workers=1,
                         use_multiprocessing=False,
                         callbacks=get_callbacks(model_file,

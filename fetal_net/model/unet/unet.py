@@ -4,7 +4,7 @@ import numpy as np
 from keras import backend as K
 from keras.engine import Input, Model
 from keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Activation, BatchNormalization, PReLU, Deconvolution2D, \
-    Permute, SpatialDropout2D
+    Permute, SpatialDropout2D, Add
 from keras.optimizers import Adam
 
 from ...metrics import dice_coefficient_loss, dice_coefficient, vod_coefficient, \
@@ -54,29 +54,28 @@ def unet_model_2d(input_shape, pool_size=(2, 2), n_labels=1, initial_learning_ra
 
     # add levels with max pooling
     for layer_depth in range(depth):
+        input_layer = current_layer
         layer1 = create_convolution_block(input_layer=current_layer, n_filters=n_base_filters * (2 ** layer_depth),
                                           batch_normalization=batch_normalization)
         if dropout_rate > 0:
             layer1 = SpatialDropout2D(rate=dropout_rate)(layer1)
-        layer2 = create_convolution_block(input_layer=layer1, n_filters=n_base_filters * (2 ** layer_depth) * 2,
-                                          batch_normalization=batch_normalization)
+        current_layer = create_convolution_block(input_layer=layer1, n_filters=n_base_filters * (2 ** layer_depth) * 2,
+                                                 batch_normalization=batch_normalization)
+        levels.append(current_layer)
+
         if layer_depth < depth - 1:
-            current_layer = MaxPooling2D(pool_size=pool_size)(layer2)
-            levels.append([layer1, layer2, current_layer])
-        else:
-            current_layer = layer2
-            levels.append([layer1, layer2])
+            current_layer = MaxPooling2D(pool_size=pool_size)(current_layer)
 
     # add levels with up-convolution or up-sampling
     for layer_depth in range(depth - 2, -1, -1):
         up_convolution = get_up_convolution(pool_size=pool_size, deconvolution=deconvolution,
                                             n_filters=current_layer._keras_shape[1])(current_layer)
-        concat = concatenate([up_convolution, levels[layer_depth][1]], axis=1)
-        current_layer = create_convolution_block(n_filters=levels[layer_depth][1]._keras_shape[1],
+        concat = concatenate([up_convolution, levels[layer_depth]], axis=1)
+        current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[1],
                                                  input_layer=concat, batch_normalization=batch_normalization)
         if dropout_rate > 0:
             current_layer = SpatialDropout2D(rate=dropout_rate)(current_layer)
-        current_layer = create_convolution_block(n_filters=levels[layer_depth][1]._keras_shape[1],
+        current_layer = create_convolution_block(n_filters=levels[layer_depth]._keras_shape[1],
                                                  input_layer=current_layer,
                                                  batch_normalization=batch_normalization)
 
@@ -112,9 +111,11 @@ def create_convolution_block(input_layer, n_filters, batch_normalization=False, 
                               "\nTry: pip install git+https://www.github.com/farizrahman4u/keras-contrib.git")
         layer = InstanceNormalization(axis=1)(layer)
     if activation is None:
-        return Activation('relu')(layer)
+        layer = Activation('relu')(layer)
     else:
-        return activation()(layer)
+        layer = activation()(layer)
+
+    return layer
 
 
 def compute_level_output_shape(n_filters, depth, pool_size, image_shape):
