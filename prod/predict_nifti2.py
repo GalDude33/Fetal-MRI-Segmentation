@@ -1,97 +1,20 @@
 import argparse
 import json
 import os
-from itertools import chain, combinations
 from pathlib import Path
 
-import numpy as np
-from nilearn.image import new_img_like
-from scipy import ndimage
-
-import fetal_net.preprocess
-from fetal.utils import get_last_model_path
-
-from fetal_net.augment import contrast_augment
-from fetal_net.normalize import normalize_data
-from fetal_net.postprocess import postprocess_prediction as process_pred
-from fetal_net.prediction import patch_wise_prediction
-from fetal_net.training import load_old_model
-from fetal.preprocess import window_intensities_data
-
-from fetal_net.utils.cut_relevant_areas import find_bounding_box, check_bounding_box
-from fetal_net.utils.utils import read_img, get_image
 import nibabel as nib
 
+import fetal_net.preprocess
+from fetal.preprocess import window_intensities_data
+from fetal.utils import get_last_model_path
+from fetal_net.normalize import normalize_data
+from fetal_net.postprocess import postprocess_prediction as process_pred
+from fetal_net.prediction import patch_wise_prediction, predict_augment, predict_flips
 from fetal_net.preprocess import *
-
-
-def flip_it(data_, axes):
-    for ax in axes:
-        data_ = np.flip(data_, ax)
-    return data_
-
-
-def predict_augment(data, model, overlap_factor, patch_shape, num_augments=32):
-    data_max = data.max()
-    data_min = data.min()
-    data = data.squeeze()
-
-    order = 2
-    predictions = []
-    for _ in range(num_augments):
-        # pixel-wise augmentations
-        val_range = data_max - data_min
-        contrast_min_val = data_min + 0.10 * np.random.uniform(-1, 1) * val_range
-        contrast_max_val = data_max + 0.10 * np.random.uniform(-1, 1) * val_range
-        curr_data = contrast_augment(data, contrast_min_val, contrast_max_val)
-
-        # spatial augmentations
-        rotate_factor = np.random.uniform(-30, 30)
-        to_flip = np.arange(0, 3)[np.random.choice([True, False], size=3)]
-        to_transpose = np.random.choice([True, False])
-
-        curr_data = flip_it(curr_data, to_flip)
-
-        if to_transpose:
-            curr_data = curr_data.transpose([1, 0, 2])
-
-        curr_data = ndimage.rotate(curr_data, rotate_factor, order=order, reshape=False)
-
-        curr_prediction = patch_wise_prediction(model=model, data=curr_data[np.newaxis, ...], overlap_factor=overlap_factor, patch_shape=patch_shape).squeeze()
-
-        curr_prediction = ndimage.rotate(curr_prediction, -rotate_factor)
-
-        if to_transpose:
-            curr_prediction = curr_prediction.transpose([1, 0, 2])
-
-        curr_prediction = flip_it(curr_prediction, to_flip)
-        predictions += [curr_prediction.squeeze()]
-
-    res = np.stack(predictions, axis=0)
-    return res
-
-
-def predict_flips(data, model, overlap_factor, config):
-    def powerset(iterable):
-        "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
-        s = list(iterable)
-        return chain.from_iterable(combinations(s, r) for r in range(0, len(s) + 1))
-
-    def predict_it(data_, axes=()):
-        data_ = flip_it(data_, axes)
-        curr_pred = \
-            patch_wise_prediction(model=model,
-                                  data=np.expand_dims(data_.squeeze(), 0),
-                                  overlap_factor=overlap_factor,
-                                  patch_shape=config["patch_shape"] + [config["patch_depth"]]).squeeze()
-        curr_pred = flip_it(curr_pred, axes)
-        return curr_pred
-
-    predictions = []
-    for axes in powerset([0, 1, 2]):
-        predictions += [predict_it(data, axes).squeeze()]
-
-    return predictions
+from fetal_net.training import load_old_model
+from fetal_net.utils.cut_relevant_areas import find_bounding_box, check_bounding_box
+from fetal_net.utils.utils import read_img, get_image
 
 
 def save_nifti(data, path):
@@ -152,12 +75,12 @@ def preproc_and_norm(data, preprocess_method=None, norm_params=None, scale=None,
 
 
 def get_prediction(data, model, augment, num_augments, return_all_preds, overlap_factor, config):
-    prediction_std = None
     if augment is not None:
+        patch_shape = config["patch_shape"] + [config["patch_depth"]]
         if augment == 'all':
-            prediction = predict_augment(data, model=model, overlap_factor=overlap_factor, num_augments=num_augments)
+            prediction = predict_augment(data, model=model, overlap_factor=overlap_factor, num_augments=num_augments, patch_shape=patch_shape)
         elif augment == 'flip':
-            prediction = predict_flips(data, model=model, overlap_factor=overlap_factor, config=config)
+            prediction = predict_flips(data, model=model, overlap_factor=overlap_factor, patch_shape=patch_shape, config=config)
         else:
             raise ("Unknown augmentation {}".format(augment))
         if not return_all_preds:

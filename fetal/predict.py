@@ -1,15 +1,8 @@
+import argparse
 import json
 import os
-from glob import glob
-from pathlib import Path
-
-import numpy as np
-import nibabel as nib
 
 from fetal_net.prediction import run_validation_cases
-import argparse
-
-from fetal_net.utils.cut_relevant_areas import find_bounding_box, cut_bounding_box
 
 
 def main(config, split='test', overlap_factor=1, use_augmentations=False):
