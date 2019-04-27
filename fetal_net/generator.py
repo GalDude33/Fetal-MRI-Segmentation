@@ -4,7 +4,7 @@ import numpy as np
 from keras.utils import to_categorical, Sequence
 
 from fetal.utils import AttributeDict as att_dict
-from fetal_net.utils.utils import resize
+from fetal_net.utils.utils import resize, list_dump, list_load
 from .augment import augment_data, random_permutation_x_y, get_image
 from .utils import pickle_dump, pickle_load
 from .utils.patches import get_patch_from_3d_data
@@ -30,32 +30,53 @@ class DataFileDummy:
         self.root = self
 
 
-def pad_samples(data_file, patch_shape, truth_downsample):
+def pad_samples(data_dict, patch_shape, truth_downsample, samples_pad):
     output_shape = [patch_shape[0] // truth_downsample,
                     patch_shape[1] // truth_downsample,
                     1]
     padding = np.ceil(np.subtract(patch_shape, output_shape) / 2).astype(int)
 
-    data_file.root.data = \
-        [np.pad(data, [(_, _) for _ in padding], 'constant', constant_values=data_min)
-         for data, data_min in zip(data_file.data, data_file.stats.min)]
-    data_file.root.truth = \
-        [np.pad(truth, [(_, _) for _ in padding], 'constant', constant_values=0)
-         for truth in data_file.truth]
+    for key in data_dict:
+        data_dict[key]['data'] = \
+            np.pad(data_dict[key]['data'], [(_, _) for _ in padding], 'constant', constant_values=data_dict[key]['data'].min())
+        data_dict[key]['truth'] = \
+            np.pad(data_dict[key]['truth'], [(_, _) for _ in padding], 'constant', constant_values=0)
 
-    data_file.root.data = \
-        [np.pad(data,
-                [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape) + 1, 0) / 2).astype(int)],
-                'constant', constant_values=data_min)
-         for data, data_min in zip(data_file.data, data_file.stats.min)]
-    data_file.root.truth = \
-        [np.pad(truth,
-                [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
-                'constant', constant_values=0)
-         for truth in data_file.truth]
+    for key in data_dict:
+        data = data_dict[key]['data']
+        data_dict[key]['data'] = \
+            np.pad(data, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape) + 1, 0) / 2).astype(int)],
+                   'constant', constant_values=data.min())
+
+        truth = data_dict[key]['truth']
+        data_dict[key]['truth'] = \
+            np.pad(truth, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
+                   'constant', constant_values=0)
+
+    for key in data_dict:
+        data = data_dict[key]['data']
+        data_dict[key]['data'] = \
+            np.pad(data, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, data.shape) + 1, 0) / 2).astype(int)],
+                   'constant', constant_values=data.min())
+
+        truth = data_dict[key]['truth']
+        data_dict[key]['truth'] = \
+            np.pad(truth, [(_, _) for _ in np.ceil(np.maximum(np.subtract(patch_shape, truth.shape) + 1, 0) / 2).astype(int)],
+                   'constant', constant_values=0)
+
+    for key in data_dict:
+        data = data_dict[key]['data']
+        data_dict[key]['data'] = \
+            np.pad(data, samples_pad,
+                   'constant', constant_values=data.min())
+
+        truth = data_dict[key]['truth']
+        data_dict[key]['truth'] = \
+            np.pad(truth, samples_pad,
+                   'constant', constant_values=0)
 
 
-def get_training_and_validation_generators(data_file, batch_size, n_labels, training_keys_file, validation_keys_file,
+def get_training_and_validation_generators(data_dict: dict, batch_size, n_labels, training_keys_file, validation_keys_file,
                                            test_keys_file,
                                            patch_shape=None, data_split=0.8, overwrite=False, labels=None, augment=None,
                                            validation_batch_size=None, skip_blank_train=True, skip_blank_val=False,
@@ -100,20 +121,23 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     if not validation_batch_size:
         validation_batch_size = batch_size
 
-    data_file = DataFileDummy(data_file, samples_pad)
+    for k in data_dict:
+        data_dict[k]['p1'] = np.percentile(data_dict[k]['data'], q=1)
+        data_dict[k]['min'] = np.min(data_dict[k]['data'])
+        data_dict[k]['max'] = np.max(data_dict[k]['data'])
 
-    pad_samples(data_file, patch_shape, truth_downsample or 1)
+    pad_samples(data_dict, patch_shape, truth_downsample or 1, samples_pad=samples_pad)
 
-    training_list, validation_list, test_list = get_validation_split(data_file,
+    training_list, validation_list, test_list = get_validation_split(data_dict,
                                                                      data_split=data_split,
                                                                      overwrite=overwrite,
                                                                      training_file=training_keys_file,
                                                                      validation_file=validation_keys_file,
                                                                      test_file=test_keys_file)
 
-    print("Training: {}".format([data_file.subject_ids[_].decode() for _ in training_list]))
-    print("Validation: {}".format([data_file.subject_ids[_].decode() for _ in validation_list]))
-    print("Test: {}".format([data_file.subject_ids[_].decode() for _ in test_list]))
+    print("Training: {}".format(training_list))
+    print("Validation: {}".format(validation_list))
+    print("Test: {}".format(test_list))
 
     # Set the number of training and testing samples per epoch correctly
     num_training_steps = patches_per_epoch // batch_size
@@ -123,7 +147,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
     print("Number of validation steps: ", num_validation_steps)
 
     training_generator = \
-        data_generator(data_file=data_file, index_list=training_list, batch_size=batch_size,
+        data_generator(data_dict=data_dict, index_list=training_list, batch_size=batch_size,
                        augment=augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                        skip_blank=skip_blank_train,
@@ -133,7 +157,7 @@ def get_training_and_validation_generators(data_file, batch_size, n_labels, trai
                        prev_truth_index=prev_truth_index, prev_truth_size=prev_truth_size,
                        drop_easy_patches=drop_easy_patches_train)
     validation_generator = \
-        data_generator(data_file=data_file, index_list=validation_list, batch_size=validation_batch_size,
+        data_generator(data_dict=data_dict, index_list=validation_list, batch_size=validation_batch_size,
                        augment=val_augment,
                        n_labels=n_labels, labels=labels, patch_shape=patch_shape,
                        skip_blank=skip_blank_val,
@@ -155,7 +179,7 @@ def get_number_of_steps(n_samples, batch_size):
         return n_samples // batch_size + 1
 
 
-def get_validation_split(data_file, training_file, validation_file, test_file, data_split=0.8, overwrite=False):
+def get_validation_split(data_dict: dict, training_file, validation_file, test_file, data_split=0.8, overwrite=False):
     """
     Splits the data into the training and validation indices list.
     :param data_file: pytables hdf5 data file
@@ -167,19 +191,18 @@ def get_validation_split(data_file, training_file, validation_file, test_file, d
     :return:
     """
     if overwrite or not os.path.exists(training_file):
-        print("Creating validation split...")
-        nb_samples = len(data_file.root.data)
-        sample_list = list(range(nb_samples))
+        print("Creating splits...")
+        sample_list = list(data_dict.keys())
         random.shuffle(sample_list)
         test_list = [sample_list.pop()]
         training_list, validation_list = split_list(sample_list, split=data_split)
-        pickle_dump(training_list, training_file)
-        pickle_dump(validation_list, validation_file)
-        pickle_dump(test_list, test_file)
+        list_dump(training_list, training_file)
+        list_dump(validation_list, validation_file)
+        list_dump(test_list, test_file)
         return training_list, validation_list, test_list
     else:
         print("Loading previous validation split...")
-        return pickle_load(training_file), pickle_load(validation_file), pickle_load(test_file)
+        return list_load(training_file), list_load(validation_file), list_load(test_file)
 
 
 def split_list(input_list, split=0.8, shuffle_list=True):
@@ -202,24 +225,7 @@ def list_generator(index_list):
         yield from index_list
 
 
-class FetalSequence(Sequence):
-
-    def __init__(self, epoch_size, **kargs):
-        self.kargs = kargs
-        self.generator = data_generator(**kargs)
-        self.epoch_size = epoch_size
-
-    def __len__(self):
-        return self.epoch_size
-
-    def __getitem__(self, idx):
-        next(self.generator)
-
-    def reset(self):
-        self.generator = data_generator(**self.kargs)
-
-
-def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
+def data_generator(data_dict, index_list, batch_size=1, n_labels=1, labels=None, augment=None, patch_shape=None,
                    shuffle_index_list=True, skip_blank=True, truth_index=-1, truth_size=1, truth_downsample=None,
                    truth_crop=True, categorical=True, prev_truth_index=None, prev_truth_size=None,
                    drop_easy_patches=False, is3d=False):
@@ -231,7 +237,7 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
 
         while len(x_list) < batch_size:
             index = next(index_generator)
-            add_data(x_list, y_list, mask_list, data_file, index, augment=augment,
+            add_data(x_list, y_list, mask_list, data_dict, index, augment=augment,
                      patch_shape=patch_shape, skip_blank=skip_blank,
                      truth_index=truth_index, truth_size=truth_size, truth_downsample=truth_downsample,
                      truth_crop=truth_crop, prev_truth_index=prev_truth_index,
@@ -240,7 +246,7 @@ def data_generator(data_file, index_list, batch_size=1, n_labels=1, labels=None,
                            is3d=is3d)
 
 
-def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_size=1, augment=None, patch_shape=None,
+def add_data(x_list, y_list, mask_list, data_dict, index, truth_index, truth_size=1, augment=None, patch_shape=None,
              skip_blank=True,
              truth_downsample=None, truth_crop=True, prev_truth_index=None, prev_truth_size=None,
              drop_easy_patches=False):
@@ -257,7 +263,7 @@ def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_siz
     :param augment: if not None, data will be augmented according to the augmentation parameters
     :return:
     """
-    data, truth, mask = get_data_from_file(data_file, index, patch_shape=None)
+    data, truth, mask = get_data_from_file(data_dict, index, patch_shape=None)
 
     patch_corner = [
         np.random.randint(low=low, high=high)
@@ -277,8 +283,8 @@ def add_data(x_list, y_list, mask_list, data_file, index, truth_index, truth_siz
 
         data, truth, prev_truth, mask = \
             augment_data(data, truth,
-                         data_min=data_file.stats.min[index],
-                         data_max=data_file.stats.max[index],
+                         data_min=data_dict[index]['min'],
+                         data_max=data_dict[index]['max'],
                          mask=mask,
                          scale_deviation=augment.get('scale', None),
                          iso_scale_deviation=augment.get('iso_scale', None),
@@ -369,11 +375,8 @@ def get_data_from_file(data_file, index, patch_shape=None):
         else:
             z = None
     else:
-        if data_file.root.mask is not None:
-            z = data_file.root.mask[index]
-        else:
-            z = None
-        x, y = data_file.root.data[index], data_file.root.truth[index]
+        z = data_file[index].get('mask', None)
+        x, y = data_file[index]['data'], data_file[index]['truth']
     return x, y, z
 
 

@@ -1,13 +1,12 @@
-import json
-import os
 import glob
+import os
 
 import fetal_net
-import fetal_net.preprocess
 import fetal_net.metrics
+import fetal_net.preprocess
 from fetal.config_utils import get_config
-from fetal.utils import get_last_model_path, fetch_training_data_files, create_data_file
-from fetal_net.data import write_data_to_file, open_data_file
+from fetal.utils import get_last_model_path, create_data_file
+from fetal_net.data import open_data_file
 from fetal_net.generator import get_training_and_validation_generators
 from fetal_net.model.fetal_net import fetal_envelope_model
 from fetal_net.training import load_old_model, train_model

@@ -10,6 +10,7 @@ from tqdm import tqdm
 from fetal.utils import get_last_model_path
 from fetal_net.utils.threaded_generator import ThreadedGenerator
 from fetal_net.utils.utils import get_image, resize
+from prod.predict_nifti2 import predict_augment
 from .training import load_old_model
 from .utils import pickle_load
 from .utils.patches import reconstruct_from_patches, get_patch_from_3d_data, compute_patch_indices, \
@@ -207,7 +208,8 @@ def multi_class_prediction(prediction, affine):
 
 
 def run_validation_case(data_index, output_dir, model, data_file, training_modalities, patch_shape,
-                        overlap_factor=0, permute=False, prev_truth_index=None, prev_truth_size=None):
+                        overlap_factor=0, permute=False, prev_truth_index=None, prev_truth_size=None,
+                        use_augmentations=False):
     """
     Runs a test case and writes predicted images to file.
     :param data_index: Index from of the list of test cases to get an image prediction from.
@@ -240,13 +242,16 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     if patch_shape == test_data.shape[-3:]:
         prediction = predict(model, test_data, permute=permute)
     else:
-        prediction = \
-            patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor,
-                                  patch_shape=patch_shape, permute=permute,
-                                  truth_data=test_truth_data, prev_truth_index=prev_truth_index,
-                                  prev_truth_size=prev_truth_size)[np.newaxis]
-    if prediction.shape[-1] > 1:
-        prediction = prediction[..., 1]
+        if use_augmentations:
+            prediction = predict_augment(data=test_data, model=model, overlap_factor=overlap_factor,
+                                         patch_shape=patch_shape)
+        else:
+            prediction = \
+                patch_wise_prediction(model=model, data=test_data, overlap_factor=overlap_factor,
+                                      patch_shape=patch_shape,
+                                      truth_data=test_truth_data, prev_truth_index=prev_truth_index,
+                                      prev_truth_size=prev_truth_size)[np.newaxis]
+
     prediction = prediction.squeeze()
     prediction_image = get_image(prediction)
     if isinstance(prediction_image, list):
@@ -260,7 +265,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
 
 def run_validation_cases(validation_keys_file, model_file, training_modalities, hdf5_file, patch_shape,
                          output_dir=".", overlap_factor=0, permute=False,
-                         prev_truth_index=None, prev_truth_size=None):
+                         prev_truth_index=None, prev_truth_size=None, use_augmentations=False):
     file_names = []
     validation_indices = pickle_load(validation_keys_file)
     model = load_old_model(get_last_model_path(model_file))
@@ -274,7 +279,7 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
             run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
                                 training_modalities=training_modalities, overlap_factor=overlap_factor,
                                 permute=permute, patch_shape=patch_shape, prev_truth_index=prev_truth_index,
-                                prev_truth_size=prev_truth_size))
+                                prev_truth_size=prev_truth_size, use_augmentations=use_augmentations))
     data_file.close()
     return file_names
 

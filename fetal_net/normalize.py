@@ -69,24 +69,24 @@ def normalize_data(data, mean, std):
     return data
 
 
-def normalize_data_storage(data_storage):
+def normalize_data_storage(data_dict: dict):
     means = list()
     stds = list()
-    for index in range(data_storage.shape[0]):
-        data = data_storage[index]
+    for key in data_dict:
+        data = data_dict[key]['data']
         means.append(data.mean(axis=(-1, -2, -3)))
         stds.append(data.std(axis=(-1, -2, -3)))
     mean = np.asarray(means).mean(axis=0)
     std = np.asarray(stds).mean(axis=0)
-    for index in range(data_storage.shape[0]):
-        data_storage[index] = normalize_data(data_storage[index], mean, std)
-    return data_storage, mean, std
+    for key in data_dict:
+        data_dict[key]['data'] = normalize_data(data_dict[key]['data'], mean, std)
+    return data_dict, mean, std
 
 
-def normalize_data_storage_each(data_storage):
-    for index in range(data_storage.shape[0]):
-        data = data_storage[index]
+def normalize_data_storage_each(data_dict: dict):
+    for key in data_dict:
+        data = data_dict[key]
         mean = data.mean(axis=(-1, -2, -3))
         std = data.std(axis=(-1, -2, -3))
-        data_storage[index] = normalize_data(data, mean, std)
-    return data_storage, None, None
+        data_dict[key] = normalize_data(data, mean, std)
+    return data_dict, None, None

@@ -67,7 +67,6 @@ def get_config():
                 'isensee': 'isensee2017_model'
             }
         }['3D' if config["3D"] else '2D'][model_name]
-        config["model_name"] = 'dis_net'
 
         # choose loss
         config["loss"] = {
@@ -165,11 +164,11 @@ def get_config():
                                           config["prev_truth_size"] if config["prev_truth_index"] is not None else 0)])
         config["truth_channel"] = config["nb_channels"]
         # Auto set - do not touch
-        config["data_file"] = os.path.join(config["base_dir"], "fetal_data.h5")
+        config["data_file"] = os.path.join(config["base_dir"], "fetal_data.pkl")
         config["model_file"] = os.path.join(config["base_dir"], "fetal_net_model")
-        config["training_file"] = os.path.join(config["split_dir"], "training_ids.pkl")
-        config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.pkl")
-        config["test_file"] = os.path.join(config["split_dir"], "test_ids.pkl")
+        config["training_file"] = os.path.join(config["split_dir"], "training_ids.txt")
+        config["validation_file"] = os.path.join(config["split_dir"], "validation_ids.txt")
+        config["test_file"] = os.path.join(config["split_dir"], "test_ids.txt")
         config["overwrite"] = False  # If True, will previous files. If False, will use previously written files.
         config["scale_data"] = (0.33, 0.33, 1)
 

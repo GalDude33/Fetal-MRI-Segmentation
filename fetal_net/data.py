@@ -1,25 +1,13 @@
 import os
 
 import numpy as np
-import tables
 from scipy.ndimage import zoom
 
-from fetal_net.utils.utils import read_img, resize
+from fetal_net.utils.utils import read_img, resize, pickle_dump, pickle_load
 from .normalize import normalize_data_storage, normalize_data_storage_each
 
-
-def create_data_file(out_file, n_samples):
-    hdf5_file = tables.open_file(out_file, mode='w')
-    filters = tables.Filters(complevel=5, complib='blosc')
-    data_storage = hdf5_file.create_vlarray(hdf5_file.root, 'data', tables.ObjectAtom(), filters=filters, expectedrows=n_samples)
-    truth_storage = hdf5_file.create_vlarray(hdf5_file.root, 'truth', tables.ObjectAtom(), filters=filters, expectedrows=n_samples)
-    mask_storage = hdf5_file.create_vlarray(hdf5_file.root, 'mask', tables.ObjectAtom(), filters=filters, expectedrows=n_samples)
-    return hdf5_file, data_storage, truth_storage, mask_storage
-
-
-def write_image_data_to_file(image_files, data_storage, truth_storage, mask_storage, truth_dtype=np.uint8, scale=None,
-                             preproc=None):
-    for set_of_files in image_files:
+def write_image_data_to_file(image_files, data_storage, subject_ids, scale=None, preproc=None):
+    for subject_id, set_of_files in zip(subject_ids, image_files):
         images = [read_img(_) for _ in set_of_files]
         subject_data = [image.get_data() for image in images]
         if scale is not None:
@@ -28,19 +16,19 @@ def write_image_data_to_file(image_files, data_storage, truth_storage, mask_stor
         if preproc is not None:
             subject_data[0] = preproc(subject_data[0])
         print(subject_data[0].shape)
-        add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data, truth_dtype)
-    return data_storage, truth_storage, mask_storage
+        add_data_to_storage(data_storage, subject_id, subject_data)
+    return data_storage
 
 
-def add_data_to_storage(data_storage, truth_storage, mask_storage, subject_data, truth_dtype):
-    data_storage.append(np.asarray(subject_data[0]).astype(np.float))
-    truth_storage.append(np.asarray(subject_data[1], dtype=truth_dtype))
+def add_data_to_storage(storage_dict, subject_id, subject_data):
+    storage_dict[subject_id] = {}
+    storage_dict[subject_id]['data'] = np.asarray(subject_data[0]).astype(np.float)
+    storage_dict[subject_id]['truth'] = np.asarray(subject_data[1]).astype(np.float)
     if len(subject_data) > 2:
-        mask_storage.append(np.asarray(subject_data[2]).astype(np.float))
+        storage_dict[subject_id]['mask'] = np.asarray(subject_data[2]).astype(np.float)
 
 
-def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
-                       subject_ids=None, normalize='all', scale=None, preproc=None):
+def write_data_to_file(training_data_files, out_file, subject_ids, normalize='all', scale=None, preproc=None):
     """
     Takes in a set of training images and writes those images to an hdf5 file.
     :param training_data_files: List of tuples containing the training data files. The modalities should be listed in
@@ -51,28 +39,22 @@ def write_data_to_file(training_data_files, out_file, truth_dtype=np.uint8,
     :param truth_dtype: Default is 8-bit unsigned integer.
     :return: Location of the hdf5 file with the image data written to it. 
     """
-    n_samples = len(training_data_files)
-    try:
-        hdf5_file, data_storage, truth_storage, mask_storage = create_data_file(out_file, n_samples=n_samples)
-    except Exception as e:
-        # If something goes wrong, delete the incomplete data file
-        os.remove(out_file)
-        raise e
+    data_dict = {}
 
-    write_image_data_to_file(training_data_files, data_storage, truth_storage, mask_storage,
-                             truth_dtype=truth_dtype, scale=scale, preproc=preproc)
-    if subject_ids:
-        hdf5_file.create_array(hdf5_file.root, 'subject_ids', obj=subject_ids)
+    write_image_data_to_file(training_data_files, data_dict, subject_ids, scale=scale, preproc=preproc)
+
     if isinstance(normalize, str):
         _, mean, std = {
             'all': normalize_data_storage,
             'each': normalize_data_storage_each
-        }[normalize](data_storage)
+        }[normalize](data_dict)
     else:
         mean, std = None, None
-    hdf5_file.close()
+
+    pickle_dump(data_dict, out_file)
+
     return out_file, (mean, std)
 
 
-def open_data_file(filename, readwrite="r"):
-    return tables.open_file(filename, readwrite)
+def open_data_file(filename):
+    return pickle_load(filename)

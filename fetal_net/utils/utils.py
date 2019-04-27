@@ -26,6 +26,14 @@ def pickle_dump(item, out_file):
         pickle.dump(item, opened_file)
 
 
+def list_dump(l, out_file):
+    np.savetxt(out_file, l, fmt='%s')
+
+
+def list_load(in_file):
+    return list(np.loadtxt(in_file, dtype=str, ndmin=1))
+
+
 def pickle_load(in_file):
     with open(in_file, "rb") as opened_file:
         return pickle.load(opened_file)
