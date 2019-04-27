@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from fetal.utils import get_last_model_path
 from fetal_net.utils.threaded_generator import ThreadedGenerator
-from fetal_net.utils.utils import get_image, list_load
+from fetal_net.utils.utils import get_image, list_load, pickle_load
 from .augment import permute_data, generate_permutation_keys, reverse_permute_data, contrast_augment
 from .training import load_old_model
 from .utils.patches import get_patch_from_3d_data
@@ -293,9 +293,9 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    test_data = np.asarray([data_file.root.data[data_index]])
+    test_data = np.asarray([data_file[data_index]['data']])
     if prev_truth_index is not None:
-        test_truth_data = np.asarray([data_file.root.truth[data_index]])
+        test_truth_data = np.asarray([data_file[data_index]['truth']])
     else:
         test_truth_data = None
 
@@ -303,7 +303,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
         image = get_image(test_data[i])
         image.to_filename(os.path.join(output_dir, "data_{0}.nii.gz".format(modality)))
 
-    test_truth = get_image(data_file.root.truth[data_index])
+    test_truth = get_image(data_file[data_index]['truth'])
     test_truth.to_filename(os.path.join(output_dir, "truth.nii.gz"))
 
     if patch_shape == test_data.shape[-3:]:
@@ -330,24 +330,20 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     return filename
 
 
-def run_validation_cases(validation_keys_file, model_file, training_modalities, hdf5_file, patch_shape,
+def run_validation_cases(validation_keys_file, model_file, training_modalities, data_file, patch_shape,
                          output_dir=".", overlap_factor=0, permute=False,
                          prev_truth_index=None, prev_truth_size=None, use_augmentations=False):
     file_names = []
     validation_indices = list_load(validation_keys_file)
     model = load_old_model(get_last_model_path(model_file))
-    data_file = tables.open_file(hdf5_file, "r")
+    data_file = pickle_load(data_file)
     for index in validation_indices:
-        if 'subject_ids' in data_file.root:
-            case_directory = os.path.join(output_dir, data_file.root.subject_ids[index].decode('utf-8'))
-        else:
-            case_directory = os.path.join(output_dir, "validation_case_{}".format(index))
+        case_directory = os.path.join(output_dir, index.decode('utf-8'))
         file_names.append(
             run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
                                 training_modalities=training_modalities, overlap_factor=overlap_factor,
                                 permute=permute, patch_shape=patch_shape, prev_truth_index=prev_truth_index,
                                 prev_truth_size=prev_truth_size, use_augmentations=use_augmentations))
-    data_file.close()
     return file_names
 
 
