@@ -16,7 +16,7 @@ def main(config, split='test', overlap_factor=1, use_augmentations=False):
     run_validation_cases(validation_keys_file=indices_file,
                          model_file=config["model_file"],
                          training_modalities=config["training_modalities"],
-                         hdf5_file=config["data_file"],
+                         data_file_path=config["data_file"],
                          output_dir=prediction_dir,
                          overlap_factor=overlap_factor,
                          patch_shape=config["patch_shape"] + [config["patch_depth"]],

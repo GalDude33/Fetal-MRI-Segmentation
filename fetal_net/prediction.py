@@ -330,13 +330,13 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     return filename
 
 
-def run_validation_cases(validation_keys_file, model_file, training_modalities, data_file, patch_shape,
+def run_validation_cases(validation_keys_file, model_file, training_modalities, data_file_path, patch_shape,
                          output_dir=".", overlap_factor=0, permute=False,
                          prev_truth_index=None, prev_truth_size=None, use_augmentations=False):
     file_names = []
     validation_indices = list_load(validation_keys_file)
     model = load_old_model(get_last_model_path(model_file))
-    data_file = pickle_load(data_file)
+    data_file = pickle_load(data_file_path)
     for index in validation_indices:
         case_directory = os.path.join(output_dir, index.decode('utf-8'))
         file_names.append(
