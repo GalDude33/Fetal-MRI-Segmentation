@@ -10,10 +10,9 @@ from tqdm import tqdm
 
 from fetal.utils import get_last_model_path
 from fetal_net.utils.threaded_generator import ThreadedGenerator
-from fetal_net.utils.utils import get_image
+from fetal_net.utils.utils import get_image, list_load
 from .augment import permute_data, generate_permutation_keys, reverse_permute_data, contrast_augment
 from .training import load_old_model
-from .utils import pickle_load
 from .utils.patches import get_patch_from_3d_data
 
 
@@ -226,7 +225,7 @@ def get_prediction_labels(prediction, threshold=0.5, labels=None):
 
 
 def get_test_indices(testing_file):
-    return pickle_load(testing_file)
+    return list_load(testing_file)
 
 
 def predict_from_data_file(model, open_data_file, index):
@@ -335,7 +334,7 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
                          output_dir=".", overlap_factor=0, permute=False,
                          prev_truth_index=None, prev_truth_size=None, use_augmentations=False):
     file_names = []
-    validation_indices = pickle_load(validation_keys_file)
+    validation_indices = list_load(validation_keys_file)
     model = load_old_model(get_last_model_path(model_file))
     data_file = tables.open_file(hdf5_file, "r")
     for index in validation_indices:
