@@ -338,7 +338,7 @@ def run_validation_cases(validation_keys_file, model_file, training_modalities, 
     model = load_old_model(get_last_model_path(model_file))
     data_file = pickle_load(data_file_path)
     for index in validation_indices:
-        case_directory = os.path.join(output_dir, index.decode('utf-8'))
+        case_directory = os.path.join(output_dir, index)
         file_names.append(
             run_validation_case(data_index=index, output_dir=case_directory, model=model, data_file=data_file,
                                 training_modalities=training_modalities, overlap_factor=overlap_factor,
