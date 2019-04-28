@@ -216,10 +216,13 @@ def random_flip_dimensions(n_dim, flip_factor):
     ]
 
 
+def apply_permute(data, truth_data, prev_truth_data, mask_data):
+    return (_.transpose([1, 0, 2]) for _ in [data, truth_data, prev_truth_data, mask_data])
+
+
 def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=None, iso_scale_deviation=None,
-                 rotate_deviation=None,
-                 translate_deviation=None, flip=None, contrast_deviation=None,
-                 poisson_noise=None, gaussian_noise=None, speckle_noise=None,
+                 rotate_deviation=None, translate_deviation=None, flip=None, permute=None,
+                 contrast_deviation=None, poisson_noise=None, gaussian_noise=None, speckle_noise=None,
                  piecewise_affine=None, elastic_transform=None, intensity_multiplication_range=None,
                  gaussian_filter=None, coarse_dropout=None, data_range=None, truth_range=None, prev_truth_range=None):
     n_dim = len(truth.shape)
@@ -249,6 +252,10 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
         translate_factor[-1] = np.floor(translate_factor[-1])  # z-translate should be int
     else:
         translate_factor = None
+    if permute is not None:
+        permute = permute > np.random.random()
+    else:
+        permute = False
     if contrast_deviation is not None:
         val_range = data_max - data_min
         contrast_min_val = data_min + contrast_deviation["min_factor"] * np.random.uniform(-1, 1) * val_range
@@ -373,6 +380,9 @@ def augment_data(data, truth, data_min, data_max, mask=None, scale_deviation=Non
     if coarse_dropout is not None:
         data = apply_coarse_dropout(data, rate=coarse_dropout_rate, size_percent=coarse_dropout_size,
                                     per_channel=coarse_dropout["per_channel"])
+
+    if permute:
+        data, truth_data, prev_truth_data, mask_data = apply_permute(data, truth_data, prev_truth_data, mask_data)
 
     return data, truth_data, prev_truth_data, mask_data
 

@@ -291,6 +291,7 @@ def add_data(x_list, y_list, mask_list, data_dict, index, truth_index, truth_siz
                          rotate_deviation=augment.get('rotate', None),
                          translate_deviation=augment.get('translate', None),
                          flip=augment.get('flip', None),
+                         permute=augment.get('permute', None),
                          contrast_deviation=augment.get('contrast', None),
                          piecewise_affine=augment.get('piecewise_affine', None),
                          elastic_transform=augment.get('elastic_transform', None),
