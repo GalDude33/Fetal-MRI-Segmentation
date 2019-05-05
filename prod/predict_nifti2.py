@@ -123,9 +123,6 @@ def main(input_path, output_path, overlap_factor,
 
     data = np.pad(data, 3, 'constant', constant_values=data.min())
 
-    data = -laplace_norm(data)
-    save_nifti(data, os.path.join(output_path, scan_name + '_data_lap.nii.gz'))
-
     print('Shape: ' + str(data.shape))
     prediction, prediction_std = get_prediction(data=data, model=model, augment=augment,
                                                 num_augments=num_augment, return_all_preds=return_all_preds,
@@ -136,12 +133,8 @@ def main(input_path, output_path, overlap_factor,
         prediction_std = prediction_std[3:-3, 3:-3, 3:-3]
 
     # revert to original size
-    #    if config.get('scale_data', None) is not None:
-    #        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
-    #            ..., np.newaxis]
-    #        if std:
-    #            prediction_std = ndimage.zoom(prediction_std.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[
-    #                ..., np.newaxis]
+    if config.get('scale_data', None) is not None:
+       prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[..., np.newaxis]
 
     save_nifti(prediction, os.path.join(output_path, scan_name + '_pred.nii.gz'))
     if prediction_std is not None:
