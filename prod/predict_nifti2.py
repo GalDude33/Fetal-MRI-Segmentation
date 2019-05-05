@@ -124,21 +124,17 @@ def main(input_path, output_path, overlap_factor,
     data = np.pad(data, 3, 'constant', constant_values=data.min())
 
     print('Shape: ' + str(data.shape))
-    prediction, prediction_std = get_prediction(data=data, model=model, augment=augment,
+    prediction = get_prediction(data=data, model=model, augment=augment,
                                                 num_augments=num_augment, return_all_preds=return_all_preds,
                                                 overlap_factor=overlap_factor, config=config)
     # unpad
     prediction = prediction[3:-3, 3:-3, 3:-3]
-    if prediction_std is not None:
-        prediction_std = prediction_std[3:-3, 3:-3, 3:-3]
 
     # revert to original size
     if config.get('scale_data', None) is not None:
        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[..., np.newaxis]
 
     save_nifti(prediction, os.path.join(output_path, scan_name + '_pred.nii.gz'))
-    if prediction_std is not None:
-        save_nifti(prediction_std, os.path.join(output_path, scan_name + '_std.nii.gz'))
 
     if z_scale != 1.0 or xy_scale != 1.0:
         prediction = ndimage.zoom(prediction.squeeze(), [1.0 / xy_scale, 1.0 / xy_scale, 1.0 / z_scale], order=1)[..., np.newaxis]
@@ -149,14 +145,12 @@ def main(input_path, output_path, overlap_factor,
         prediction = prediction.squeeze()
         mask = process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
         nifti = read_img(input_path)
-        prediction, prediction_std = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
+        prediction = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
                                                           config2=config2, model2_path=model2_path,
                                                           preprocess_method2=preprocess_method2, norm_params2=norm_params2,
                                                           overlap_factor=overlap_factor, augment2=augment2, num_augment=num_augment2,
                                                           return_all_preds=return_all_preds)
         save_nifti(prediction, os.path.join(output_path, scan_name + 'pred_roi.nii.gz'))
-        if prediction_std is not None:
-            save_nifti(prediction_std, os.path.join(output_path, scan_name + 'std_roi.nii.gz'))
 
     print('Saving to {}'.format(output_path))
     print('Finished.')
@@ -183,7 +177,7 @@ if __name__ == '__main__':
                         type=float, default=1)
     parser.add_argument("--xy_scale", help="specifies overlap between prediction patches",
                         type=float, default=1)
-    parser.add_argument("--return_all_preds", help="output std for prediction",
+    parser.add_argument("--return_all_preds", help="return all predictions or mean result for prediction?",
                         type=int, default=0)
 
     # Params for primary prediction
