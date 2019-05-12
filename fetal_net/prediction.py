@@ -308,6 +308,7 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
     test_truth = get_image(data_file[data_index]['truth'])
     test_truth.to_filename(os.path.join(output_dir, "truth.nii.gz"))
 
+    test_data = np.pad(test_data, 3, 'constant', constant_values=test_data.min())
     if patch_shape == test_data.shape[-3:]:
         prediction = predict(model, test_data, permute=permute)
     else:
@@ -320,6 +321,8 @@ def run_validation_case(data_index, output_dir, model, data_file, training_modal
                                       patch_shape=patch_shape,
                                       truth_data=test_truth_data, prev_truth_index=prev_truth_index,
                                       prev_truth_size=prev_truth_size)[np.newaxis]
+
+    prediction = prediction[:, -3:3, -3:3, -3:3]
 
     prediction = prediction.squeeze()
     prediction_image = get_image(prediction)
