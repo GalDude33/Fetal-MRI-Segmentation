@@ -28,6 +28,8 @@ def predict_augment(data, model, overlap_factor, patch_shape, num_augments=32):
     data = data.squeeze()
 
     order = 2
+    cval = np.percentile(data, q=1)
+
     predictions = []
     for _ in range(num_augments):
         # pixel-wise augmentations
@@ -46,11 +48,11 @@ def predict_augment(data, model, overlap_factor, patch_shape, num_augments=32):
         if to_transpose:
             curr_data = curr_data.transpose([1, 0, 2])
 
-        curr_data = ndimage.rotate(curr_data, rotate_factor, order=order, reshape=False)
+        curr_data = ndimage.rotate(curr_data, rotate_factor, order=order, reshape=False, mode='constant', cval=cval)
 
         curr_prediction = patch_wise_prediction(model=model, data=curr_data[np.newaxis, ...], overlap_factor=overlap_factor, patch_shape=patch_shape).squeeze()
 
-        curr_prediction = ndimage.rotate(curr_prediction, -rotate_factor)
+        curr_prediction = ndimage.rotate(curr_prediction, -rotate_factor, order=0, reshape=False, mode='constant', cval=0)
 
         if to_transpose:
             curr_prediction = curr_prediction.transpose([1, 0, 2])
