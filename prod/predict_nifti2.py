@@ -22,10 +22,9 @@ def save_nifti(data, path):
     nib.save(nifti, path)
 
 
-def secondary_prediction(mask, vol, config2, model2_path=None,
+def secondary_prediction(mask, vol, config2, model2,
                          preprocess_method2=None, norm_params2=None,
                          overlap_factor=0.9, augment2=None, num_augment=10, return_all_preds=False):
-    model2 = load_old_model(get_last_model_path(model2_path), config=config2)
     pred = mask
     bbox_start, bbox_end = find_bounding_box(pred)
     check_bounding_box(pred, bbox_start, bbox_end)
@@ -95,18 +94,25 @@ def get_prediction(data, model, augment, num_augments, return_all_preds, overlap
     return prediction
 
 
+def delete_nii_gz(s):
+    if s[-3:] == '.gz':
+        s = s[:-3]
+    if s[-4:] == '.nii':
+        s = s[:-4]
+    return s
+
+
 def main(input_path, output_path, overlap_factor,
-         config, model_path, preprocess_method=None, norm_params=None, augment=None, num_augment=0,
-         config2=None, model2_path=None, preprocess_method2=None, norm_params2=None, augment2=None, num_augment2=0,
+         config, model, preprocess_method=None, norm_params=None, augment=None, num_augment=0,
+         config2=None, model2=None, preprocess_method2=None, norm_params2=None, augment2=None, num_augment2=0,
          z_scale=None, xy_scale=None, return_all_preds=False):
-    print(model_path)
-    model = load_old_model(get_last_model_path(model_path), config=config)
+
     print('Loading nifti from {}...'.format(input_path))
     nifti = read_img(input_path)
     print('Predicting mask...')
     data = nifti.get_fdata().astype(np.float).squeeze()
     print('original_shape: ' + str(data.shape))
-    scan_name = Path(input_path).name.split('.')[0]
+    scan_name = delete_nii_gz(Path(input_path).name)
 
     if (z_scale is None):
         z_scale = 1.0
@@ -119,38 +125,36 @@ def main(input_path, output_path, overlap_factor,
                             scale=config.get('scale_data', None),
                             preproc=config.get('preproc', None))
 
-    save_nifti(data, os.path.join(output_path, scan_name + '_data.nii.gz'))
+    save_nifti(data, os.path.join(output_path, scan_name, 'data.nii.gz'))
 
     data = np.pad(data, 3, 'constant', constant_values=data.min())
 
     print('Shape: ' + str(data.shape))
     prediction = get_prediction(data=data, model=model, augment=augment,
-                                                num_augments=num_augment, return_all_preds=return_all_preds,
-                                                overlap_factor=overlap_factor, config=config)
+                                num_augments=num_augment, return_all_preds=return_all_preds,
+                                overlap_factor=overlap_factor, config=config)
     # unpad
     prediction = prediction[3:-3, 3:-3, 3:-3]
 
     # revert to original size
     if config.get('scale_data', None) is not None:
-       prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[..., np.newaxis]
+        prediction = ndimage.zoom(prediction.squeeze(), np.divide([1, 1, 1], config.get('scale_data', None)), order=0)[..., np.newaxis]
 
-    save_nifti(prediction, os.path.join(output_path, scan_name + '_pred.nii.gz'))
+    save_nifti(prediction, os.path.join(output_path, scan_name, 'pred.nii.gz'))
 
     if z_scale != 1.0 or xy_scale != 1.0:
         prediction = ndimage.zoom(prediction.squeeze(), [1.0 / xy_scale, 1.0 / xy_scale, 1.0 / z_scale], order=1)[..., np.newaxis]
 
-    # if prediction.shape[-1] > 1:
-    #    prediction = prediction[..., 1]
     if config2 is not None:
         prediction = prediction.squeeze()
-        mask = process_pred(prediction, gaussian_std=0.5, threshold=0.5)  # .astype(np.uint8)
+        mask = process_pred(prediction, gaussian_std=0.5, threshold=0.5)
         nifti = read_img(input_path)
         prediction = secondary_prediction(mask, vol=nifti.get_fdata().astype(np.float),
-                                                          config2=config2, model2_path=model2_path,
-                                                          preprocess_method2=preprocess_method2, norm_params2=norm_params2,
-                                                          overlap_factor=overlap_factor, augment2=augment2, num_augment=num_augment2,
-                                                          return_all_preds=return_all_preds)
-        save_nifti(prediction, os.path.join(output_path, scan_name + 'pred_roi.nii.gz'))
+                                          config2=config2, model2=model2,
+                                          preprocess_method2=preprocess_method2, norm_params2=norm_params2,
+                                          overlap_factor=overlap_factor, augment2=augment2, num_augment=num_augment2,
+                                          return_all_preds=return_all_preds)
+        save_nifti(prediction, os.path.join(output_path, scan_name, 'pred_roi.nii.gz'))
 
     print('Saving to {}'.format(output_path))
     print('Finished.')
@@ -167,9 +171,9 @@ def get_params(config_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_nii", help="specifies mat file dir path",
-                        type=str, required=True)
-    parser.add_argument("--output_folder", help="specifies mat file dir path",
+    parser.add_argument("--input_nii", help="specifies nifti file dir path",
+                        nargs='*', required=True)
+    parser.add_argument("--output_folder", help="specifies nifti file dir path",
                         type=str, required=True)
     parser.add_argument("--overlap_factor", help="specifies overlap between prediction patches",
                         type=float, default=0.9)
@@ -212,9 +216,16 @@ if __name__ == '__main__':
     else:
         _config2, _norm_params2, _model2_path = None, None, None
 
-    main(opts.input_nii, opts.output_folder, overlap_factor=opts.overlap_factor,
-         config=_config, model_path=_model_path, preprocess_method=opts.preprocess, norm_params=_norm_params, augment=opts.augment,
-         num_augment=opts.num_augment,
-         config2=_config2, model2_path=_model2_path, preprocess_method2=opts.preprocess2, norm_params2=_norm_params2, augment2=opts.augment2,
-         num_augment2=opts.num_augment2,
-         z_scale=opts.z_scale, xy_scale=opts.xy_scale, return_all_preds=opts.return_all_preds)
+    print('First:' + _model_path)
+    _model = load_old_model(get_last_model_path(_model_path), config=_config)
+
+    print('Second:' + _model2_path)
+    _model2 = load_old_model(get_last_model_path(_model2_path), config=_config2)
+
+    for input_path in opts.input_nii:
+        main(input_path, opts.output_folder, overlap_factor=opts.overlap_factor,
+             config=_config, model=_model, preprocess_method=opts.preprocess, norm_params=_norm_params, augment=opts.augment,
+             num_augment=opts.num_augment,
+             config2=_config2, model2=_model2, preprocess_method2=opts.preprocess2, norm_params2=_norm_params2, augment2=opts.augment2,
+             num_augment2=opts.num_augment2,
+             z_scale=opts.z_scale, xy_scale=opts.xy_scale, return_all_preds=opts.return_all_preds)
