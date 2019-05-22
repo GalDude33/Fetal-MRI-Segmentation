@@ -1,6 +1,6 @@
 ### Quick Links
 
-- [Development Branch](https://github.com/GalDude33/Fetal-MRI-Segmentation/tree/prev_truth)
+- [Development Branch](https://github.com/GalDude33/Fetal-MRI-Segmentation/tree/dev)
 
 - [Experiments Branch](https://github.com/GalDude33/Fetal-MRI-Segmentation/tree/adapt)
 
