@@ -172,7 +172,7 @@ def get_params(config_dir):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_nii", help="specifies nifti file dir path",
-                        nargs='*', required=True)
+                        nargs='+', required=True)
     parser.add_argument("--output_folder", help="specifies nifti file dir path",
                         type=str, required=True)
     parser.add_argument("--overlap_factor", help="specifies overlap between prediction patches",
@@ -206,6 +206,8 @@ if __name__ == '__main__':
 
     opts = parser.parse_args()
 
+    print(opts.input_nii)
+
     Path(opts.output_folder).mkdir(exist_ok=True)
 
     # 1
@@ -223,6 +225,7 @@ if __name__ == '__main__':
     _model2 = load_old_model(get_last_model_path(_model2_path), config=_config2)
 
     for input_path in opts.input_nii:
+        print(input_path)
         main(input_path, opts.output_folder, overlap_factor=opts.overlap_factor,
              config=_config, model=_model, preprocess_method=opts.preprocess, norm_params=_norm_params, augment=opts.augment,
              num_augment=opts.num_augment,
